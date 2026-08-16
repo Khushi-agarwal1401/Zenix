@@ -1,0 +1,25 @@
+[
+  {
+    "query": "tell me about PM kisan",
+    "retrieved_context": [],
+    "label": 0,
+    "timestamp": "2026-01-13T19:42:10.367989",
+    "metadata": {
+      "persona": "sarkari",
+      "request_id": "f764d291-1297-40b9-937b-e1478fb0d1fe"
+    }
+  },
+  {
+    "query": "who is Zenix for?",
+    "retrieved_context": [
+      "Zenix is designed to address the \"Viksit Bharat\" (Developed India) vision, aiming to bridge the digital divide. It serves as a conversational interface for the next billion users\u2014the \"digital have-nots\" for whom English interfaces are a barrier. By leveraging advanced Indic Natural Language Processing (NLP), sovereign hardware infrastructure like Krutrim Silicon, and culturally aligned system prompts, Zenix aims to democratize access to technology. This report serves as the technical and",
+      "Zenix is designed to address the \"Viksit Bharat\" (Developed India) vision, aiming to bridge the digital divide. It serves as a conversational interface for the next billion users\u2014the \"digital have-nots\" for whom English interfaces are a barrier. By leveraging advanced Indic Natural Language Processing (NLP), sovereign hardware infrastructure like Krutrim Silicon, and culturally aligned system prompts, Zenix aims to democratize access to technology. This report serves as the technical and philosophical manual for Zenix, defining its persona, its linguistic engine, and the precise \"System Prompt\" that governs its existence."
+    ],
+    "label": 1,
+    "timestamp": "2026-01-13T19:46:17.479575",
+    "metadata": {
+      "persona": "sarkari",
+      "request_id": "84c2843b-3c31-4737-bedf-74e99f60012d"
+    }
+  }
+]
