@@ -58,7 +58,7 @@ export default function ChatInterface() {
     return (
         <div className="flex flex-col h-screen bg-zinc-50 dark:bg-black text-foreground font-sans">
             {/* Header */}
-            <header className="flex items-center justify-between px-6 py-4 bg-white/50 dark:bg-zinc-950/50 border-b border-zinc-200 dark:border-zinc-800 backdrop-blur-sm sticky top-0 z-10">
+            <header className="flex items-center justify-between px-6 py-4 bg-white/60 dark:bg-zinc-950/60 border-b border-white/20 dark:border-zinc-800/50 backdrop-blur-xl sticky top-0 z-20 shadow-[0_10px_40px_rgba(0,0,0,0.03)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.2)]">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-black dark:bg-white flex items-center justify-center">
                         <span className="text-white dark:text-black font-bold text-lg">Z</span>

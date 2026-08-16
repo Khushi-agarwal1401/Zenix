@@ -24,3 +24,92 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Custom Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.5);
+}
+
+/* Scroll-State Container for Message List */
+.scroller {
+  /* Establish this element as a scroll-state query container */
+  container-type: scroll-state;
+  position: relative;
+  overflow-y: auto;
+}
+
+.indicator-top, .indicator-bottom {
+  position: sticky;
+  left: 0;
+  right: 0;
+  height: 24px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none; /* Let clicks pass through */
+  z-index: 10;
+}
+
+.indicator-top {
+  top: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.06), transparent);
+}
+@media (prefers-color-scheme: dark) {
+  .indicator-top { background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent); }
+}
+
+.indicator-bottom {
+  bottom: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.06), transparent);
+}
+@media (prefers-color-scheme: dark) {
+  .indicator-bottom { background: linear-gradient(to top, rgba(0,0,0,0.5), transparent); }
+}
+
+/* Show top indicator when the user can scroll up */
+@container scroll-state(scrollable: top) {
+  .indicator-top {
+    opacity: 1;
+  }
+}
+
+/* Show bottom indicator when the user can scroll down */
+@container scroll-state(scrollable: bottom) {
+  .indicator-bottom {
+    opacity: 1;
+  }
+}
+
+/* Fallback classes for IntersectionObserver */
+.scroller.scrolled-down .indicator-top {
+  opacity: 1;
+}
+.scroller.can-scroll-down .indicator-bottom {
+  opacity: 1;
+}
+
+/* Message Entry Animation */
+@keyframes message-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-message-enter {
+  animation: message-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

@@ -25,7 +25,7 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
     };
 
     return (
-        <div className="p-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800">
+        <div className="p-4 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-t border-white/20 dark:border-zinc-800/50 shadow-[0_-10px_40px_rgba(0,0,0,0.03)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)] z-20 relative">
             <div className="max-w-3xl mx-auto flex gap-2 relative">
                 <div className="relative flex-1">
                     <input

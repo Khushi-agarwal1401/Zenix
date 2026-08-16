@@ -11,8 +11,40 @@ interface MessageListProps {
 
 export function MessageList({ messages, isLoading }: MessageListProps) {
     const [copiedId, setCopiedId] = React.useState<string | null>(null);
-
     const [feedbackState, setFeedbackState] = React.useState<Record<string, 'up' | 'down'>>({});
+    
+    // Refs for fallback IntersectionObserver (scroll indicators)
+    const scrollerRef = React.useRef<HTMLDivElement>(null);
+    const topSentinelRef = React.useRef<HTMLDivElement>(null);
+    const bottomSentinelRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        if (typeof CSS !== 'undefined' && CSS.supports('container-type', 'scroll-state')) {
+            return; // Native support, no observer needed
+        }
+
+        const scroller = scrollerRef.current;
+        const topSentinel = topSentinelRef.current;
+        const bottomSentinel = bottomSentinelRef.current;
+
+        if (!scroller || !topSentinel || !bottomSentinel) return;
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.target === topSentinel) {
+                    scroller.classList.toggle('scrolled-down', !entry.isIntersecting);
+                }
+                if (entry.target === bottomSentinel) {
+                    scroller.classList.toggle('can-scroll-down', !entry.isIntersecting);
+                }
+            });
+        }, { root: scroller });
+
+        observer.observe(topSentinel);
+        observer.observe(bottomSentinel);
+
+        return () => observer.disconnect();
+    }, []);
 
     const handleCopy = async (id: string, content: string) => {
         try {
@@ -41,12 +73,15 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
     };
 
     return (
-        <div className="flex-1 overflow-y-auto space-y-6 p-4">
-            {messages.map((msg) => (
+        <div ref={scrollerRef} className="flex-1 scroller space-y-6 p-4">
+            <div ref={topSentinelRef} className="h-0 w-0 absolute top-0" />
+            <div className="indicator-top" />
+            {messages.map((msg, index) => (
                 <div
                     key={msg.id}
+                    style={index === messages.length - 1 ? { scrollInitialTarget: 'nearest' } as React.CSSProperties : undefined}
                     className={clsx(
-                        "flex gap-4 max-w-3xl mx-auto group",
+                        "flex gap-4 max-w-3xl mx-auto group animate-message-enter",
                         msg.role === 'user' ? "justify-end" : "justify-start"
                     )}
                 >
@@ -131,6 +166,8 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                     <div className="bg-zinc-100 dark:bg-zinc-800 rounded-2xl px-5 py-4 w-32 h-10"></div>
                 </div>
             )}
+            <div className="indicator-bottom" />
+            <div ref={bottomSentinelRef} className="h-0 w-0 absolute bottom-0" />
         </div>
     );
 }
