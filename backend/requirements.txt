@@ -6,3 +6,4 @@ torch
 rank_bm25
 transformers
 accelerate
+anthropic

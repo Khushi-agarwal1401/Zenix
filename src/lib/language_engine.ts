@@ -1,4 +1,3 @@
-import { ZENIX_CONFIG } from './zenix_core';
 
 export interface LanguageDetectionResult {
     language: string;
@@ -17,7 +16,8 @@ export class LanguageEngine {
      * Detects the language and script of the input text.
      * Currently a stub implementation.
      */
-    static detectLanguage(text: string): LanguageDetectionResult {
+    static detectLanguage(_text: string): LanguageDetectionResult {
+        void _text; // Stub
         // TODO: Implement actual detection logic (e.g. using Franc or specialized Indic models)
         return {
             language: 'en', // Default to English for now
@@ -31,7 +31,8 @@ export class LanguageEngine {
      * Transliterates text from one script to another.
      * Currently a stub implementation.
      */
-    static transliterate(text: string, config: TransliterationConfig): string {
+    static transliterate(text: string, _config: TransliterationConfig): string {
+        void _config; // Stub
         // TODO: Implement transliteration (e.g. using Sanscript or similar)
         return text;
     }

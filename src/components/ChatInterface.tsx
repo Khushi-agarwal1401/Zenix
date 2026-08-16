@@ -5,7 +5,7 @@ import { Persona, Message } from '@/lib/types';
 import { PersonaToggle } from './PersonaToggle';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
-import { MASTER_SYSTEM_PROMPT } from '@/lib/zenix_core';
+
 import { AIResponseService } from '@/lib/ai_service';
 
 export default function ChatInterface() {
