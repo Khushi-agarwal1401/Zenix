@@ -32,7 +32,7 @@ class QueryRewriter(PipelineModule):
                 f"Rewritten:"
             )
 
-            rewritten = llm.generate(prompt=prompt, system_prompt=system_prompt)
+            rewritten = await llm.async_generate(prompt=prompt, system_prompt=system_prompt)
 
             if rewritten and len(rewritten.strip()) > 3:
                 return {"rewritten_query": rewritten.strip()}

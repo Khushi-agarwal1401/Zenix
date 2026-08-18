@@ -73,7 +73,7 @@ class AgentModule(PipelineModule):
         )
 
         try:
-            plan_text = llm.generate(
+            plan_text = await llm.async_generate(
                 prompt=plan_prompt,
                 system_prompt=system_prompt,
                 history=chat_history,
@@ -112,7 +112,7 @@ class AgentModule(PipelineModule):
                 f"Format your response clearly."
             )
 
-            final_answer = llm.generate(
+            final_answer = await llm.async_generate(
                 prompt=synthesis_prompt,
                 system_prompt=system_prompt,
                 history=chat_history,

@@ -76,7 +76,7 @@ class IntentClassifier(PipelineModule):
                 "Respond with ONLY the category name, nothing else."
             )
             prompt = f"Classify: {message}\nIntent:"
-            generated = llm.generate(prompt=prompt, system_prompt=system_prompt)
+            generated = await llm.async_generate(prompt=prompt, system_prompt=system_prompt)
             generated = generated.strip().lower()
 
             if "greeting" in generated:

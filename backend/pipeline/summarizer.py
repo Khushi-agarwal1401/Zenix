@@ -25,7 +25,7 @@ class ConversationSummarizer:
         """Check if the history needs summarization."""
         return len(history) > max_messages
 
-    def summarize_and_compress(
+    async def summarize_and_compress(
         self,
         history: List[Dict[str, str]],
         max_messages: int = 40,
@@ -47,7 +47,7 @@ class ConversationSummarizer:
         recent_messages = history[split_point:]
 
         # Generate summary of old messages
-        summary = self._generate_summary(old_messages, persona)
+        summary = await self._generate_summary(old_messages, persona)
 
         if summary:
             # Prepend summary as a system context message
@@ -63,7 +63,7 @@ class ConversationSummarizer:
         # Fallback: just keep recent messages
         return recent_messages
 
-    def _generate_summary(self, messages: List[Dict[str, str]], persona: str) -> Optional[str]:
+    async def _generate_summary(self, messages: List[Dict[str, str]], persona: str) -> Optional[str]:
         """Use LLM to generate a summary of old messages."""
         if not messages:
             return None
@@ -95,7 +95,7 @@ class ConversationSummarizer:
                 f"Summary:"
             )
 
-            summary = llm.generate(
+            summary = await llm.async_generate(
                 prompt=prompt,
                 system_prompt=system_prompt,
                 temperature=0.3,

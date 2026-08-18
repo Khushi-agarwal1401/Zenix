@@ -40,7 +40,7 @@ class GenerativeModule(PipelineModule):
                 chat_history.append({"role": role, "content": content})
 
         try:
-            generated_content = llm.generate(
+            generated_content = await llm.async_generate(
                 prompt=prompt,
                 system_prompt=system_prompt,
                 history=chat_history,

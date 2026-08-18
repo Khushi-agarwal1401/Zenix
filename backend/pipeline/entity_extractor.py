@@ -22,7 +22,7 @@ class EntityExtractor(PipelineModule):
 
             prompt = f"Extract entities from this text:\n{message}\nEntities:"
 
-            extracted = llm.generate(prompt=prompt, system_prompt=system_prompt)
+            extracted = await llm.async_generate(prompt=prompt, system_prompt=system_prompt)
 
             if extracted and "none" not in extracted.lower().strip():
                 # Parse comma-separated entity list

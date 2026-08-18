@@ -284,7 +284,7 @@ async def chat_endpoint(request: ChatRequest):
     # Summarize old history if getting too long
     cached = conversation_cache.get(session_id, [])
     if conversation_summarizer.should_summarize(cached, MAX_HISTORY_MESSAGES * 2):
-        compressed = conversation_summarizer.summarize_and_compress(
+        compressed = await conversation_summarizer.summarize_and_compress(
             cached, MAX_HISTORY_MESSAGES * 2, persona
         )
         session_store.replace_history(session_id, compressed)

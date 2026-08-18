@@ -61,7 +61,7 @@ class ChatModule(PipelineModule):
             if role in ("user", "assistant") and content:
                 chat_history.append({"role": role, "content": content})
 
-        generated = llm.generate(
+        generated = await llm.async_generate(
             prompt=input_data,
             system_prompt=system_prompt,
             history=chat_history,
@@ -140,7 +140,7 @@ class RAGModule(PipelineModule):
                     if role in ("user", "assistant") and content:
                         chat_history.append({"role": role, "content": content})
 
-                generated_answer = llm.generate(
+                generated_answer = await llm.async_generate(
                     prompt=prompt,
                     system_prompt=system_prompt,
                     history=chat_history,

@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 import urllib.request
 import urllib.error
 
@@ -109,6 +110,32 @@ class LLMClient:
             return self._generate_openai(prompt, sys_prompt, history, temperature, max_tokens)
         else:
             return self._generate_local(prompt, sys_prompt)
+
+    # ── Async Generation ──────────────────────────────────────────────────────
+
+    async def async_generate(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        history: list[dict] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
+    ) -> str:
+        """
+        Async wrapper around generate(). Runs the blocking call in a thread
+        pool executor so it doesn't block the event loop.
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self.generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                history=history,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            ),
+        )
 
     # ── OpenAI-compatible API ─────────────────────────────────────────────────
 
