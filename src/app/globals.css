@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #09090b;
 }
 
 @theme inline {
@@ -14,8 +14,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #09090b;
+    --foreground: #fafafa;
   }
 }
 
@@ -27,23 +27,33 @@ body {
 
 /* Custom Premium Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(150, 150, 150, 0.3);
-  border-radius: 4px;
+  background: rgba(120, 120, 130, 0.25);
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 150, 150, 0.5);
+  background: rgba(120, 120, 130, 0.45);
+}
+
+/* Subtle dot background texture */
+.bg-dot-pattern {
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+@media (prefers-color-scheme: dark) {
+  .bg-dot-pattern {
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  }
 }
 
 /* Scroll-State Container for Message List */
 .scroller {
-  /* Establish this element as a scroll-state query container */
   container-type: scroll-state;
   position: relative;
   overflow-y: auto;
@@ -53,56 +63,45 @@ body {
   position: sticky;
   left: 0;
   right: 0;
-  height: 24px;
+  height: 32px;
   opacity: 0;
   transition: opacity 0.3s ease;
-  pointer-events: none; /* Let clicks pass through */
+  pointer-events: none;
   z-index: 10;
 }
 
 .indicator-top {
   top: 0;
-  background: linear-gradient(to bottom, rgba(0,0,0,0.06), transparent);
+  background: linear-gradient(to bottom, rgba(250, 250, 250, 0.95), transparent);
 }
 @media (prefers-color-scheme: dark) {
-  .indicator-top { background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent); }
+  .indicator-top { background: linear-gradient(to bottom, rgba(9, 9, 11, 0.95), transparent); }
 }
 
 .indicator-bottom {
   bottom: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.06), transparent);
+  background: linear-gradient(to top, rgba(250, 250, 250, 0.95), transparent);
 }
 @media (prefers-color-scheme: dark) {
-  .indicator-bottom { background: linear-gradient(to top, rgba(0,0,0,0.5), transparent); }
+  .indicator-bottom { background: linear-gradient(to top, rgba(9, 9, 11, 0.95), transparent); }
 }
 
-/* Show top indicator when the user can scroll up */
 @container scroll-state(scrollable: top) {
-  .indicator-top {
-    opacity: 1;
-  }
+  .indicator-top { opacity: 1; }
 }
 
-/* Show bottom indicator when the user can scroll down */
 @container scroll-state(scrollable: bottom) {
-  .indicator-bottom {
-    opacity: 1;
-  }
+  .indicator-bottom { opacity: 1; }
 }
 
-/* Fallback classes for IntersectionObserver */
-.scroller.scrolled-down .indicator-top {
-  opacity: 1;
-}
-.scroller.can-scroll-down .indicator-bottom {
-  opacity: 1;
-}
+.scroller.scrolled-down .indicator-top { opacity: 1; }
+.scroller.can-scroll-down .indicator-bottom { opacity: 1; }
 
 /* Message Entry Animation */
 @keyframes message-enter {
   0% {
     opacity: 0;
-    transform: translateY(10px) scale(0.98);
+    transform: translateY(8px) scale(0.99);
   }
   100% {
     opacity: 1;
@@ -111,5 +110,62 @@ body {
 }
 
 .animate-message-enter {
-  animation: message-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: message-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Typing indicator dots */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(113, 113, 122, 0.5);
+  animation: typing-bounce 1.2s infinite ease-in-out;
+}
+.typing-dot:nth-child(1) { animation-delay: 0ms; }
+.typing-dot:nth-child(2) { animation-delay: 200ms; }
+.typing-dot:nth-child(3) { animation-delay: 400ms; }
+
+@media (prefers-color-scheme: dark) {
+  .typing-dot {
+    background: rgba(161, 161, 170, 0.5);
+  }
+}
+
+/* Code block base styling */
+.code-block pre {
+  background: #18181b;
+  color: #e4e4e7;
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(63, 63, 70, 0.5);
+  font-size: 13px;
+  line-height: 1.65;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  .code-block pre {
+    background: #0f0f11;
+    border-color: rgba(63, 63, 70, 0.4);
+  }
+}
+.code-block pre code {
+  background: transparent !important;
+  padding: 0;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+}
+
+/* Smooth focus ring */
+.focus-ring {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
 }
