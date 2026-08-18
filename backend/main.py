@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from datetime import datetime
 import asyncio
 import threading
@@ -10,6 +10,9 @@ import json
 import logging
 from collections import defaultdict
 from typing import List, Dict, AsyncGenerator
+
+from pipeline.cache import response_cache
+from pipeline.rate_limiter import rate_limiter
 
 app = FastAPI()
 
@@ -146,7 +149,34 @@ async def feedback_endpoint(request: FeedbackRequest):
 
 @app.get("/status")
 async def status_endpoint():
-    return {"pipeline_ready": _pipeline_ready, "status": "ok"}
+    return {
+        "pipeline_ready": _pipeline_ready,
+        "status": "ok",
+        "cache": response_cache.stats(),
+        "rate_limiter": rate_limiter.stats(),
+    }
+
+
+@app.post("/cache/clear")
+async def cache_clear_endpoint():
+    """Clear the response cache."""
+    response_cache.clear()
+    return {"status": "Cache cleared"}
+
+
+@app.get("/cache/stats")
+async def cache_stats_endpoint():
+    """Return cache statistics."""
+    return response_cache.stats()
+
+
+@app.get("/rate-limit/stats")
+async def rate_limit_stats_endpoint():
+    """Return rate limiter statistics."""
+    cleaned = rate_limiter.cleanup_stale()
+    stats = rate_limiter.stats()
+    stats["cleaned_stale_sessions"] = cleaned
+    return stats
 
 
 @app.post("/chat")
@@ -154,53 +184,75 @@ async def chat_endpoint(request: ChatRequest):
     request_id = str(uuid.uuid4())
     message = request.message
     persona = request.persona
-    session_id = request.session_id or request_id  # Use request_id if no session
+    session_id = request.session_id or request_id
 
-    # Retrieve conversation history for this session
-    history = conversation_store[session_id]
-
-    context = {
-        "request_id": request_id,
-        "persona": persona,
-        "session_id": session_id,
-        "metadata": {},
-        "history": history,  # Pass history to pipeline modules
-    }
-
-    # Fast path: if pipeline not ready yet, use direct LLM call
-    if not _pipeline_ready:
-        print(f"Pipeline not ready — using direct LLM for: {message[:60]}")
-        response_text = await asyncio.get_event_loop().run_in_executor(
-            None, _direct_llm_response, message, persona, history
+    # Rate limiting
+    rate_check = rate_limiter.check(session_id)
+    if not rate_check["allowed"]:
+        retry_msg = (
+            f"You're sending messages too fast. Please wait {rate_check['retry_after']:.1f} seconds."
+            if persona == "sarkari"
+            else f"Arre yaar, slow down! Thoda ruk jao ({rate_check['retry_after']:.1f}s)."
         )
+        return JSONResponse(
+            status_code=429,
+            content={
+                "response": retry_msg,
+                "request_id": request_id,
+                "session_id": session_id,
+                "rate_limited": True,
+                "retry_after": rate_check["retry_after"],
+            },
+        )
+
+    # Check cache (skip for first message in session to ensure freshness)
+    history = conversation_store[session_id]
+    is_first_message = len(history) == 0
+    cached_response = None if is_first_message else response_cache.get(message, persona)
+
+    if cached_response:
+        response_text = cached_response
     else:
-        try:
-            # Full pipeline path
-            result = await task_router.route_and_process(message, context)
-            final_result = await verification_layer.process(result, context)
+        context = {
+            "request_id": request_id,
+            "persona": persona,
+            "session_id": session_id,
+            "metadata": {},
+            "history": history,
+        }
 
-            retrieved_results = context.get("retrieved_results", [])
-            log_interaction(
-                query=message,
-                retrieved_results=retrieved_results,
-                persona=persona,
-                request_id=request_id,
-            )
-
-            response_text = final_result.get("response", "Error generating response")
-
-        except Exception as e:
-            print(f"Error in chat endpoint: {e}")
-            # Fallback to direct LLM on pipeline error
+        if not _pipeline_ready:
+            print(f"Pipeline not ready — using direct LLM for: {message[:60]}")
             response_text = await asyncio.get_event_loop().run_in_executor(
                 None, _direct_llm_response, message, persona, history
             )
+        else:
+            try:
+                result = await task_router.route_and_process(message, context)
+                final_result = await verification_layer.process(result, context)
 
-    # Store conversation history (user message + assistant response)
+                retrieved_results = context.get("retrieved_results", [])
+                log_interaction(
+                    query=message,
+                    retrieved_results=retrieved_results,
+                    persona=persona,
+                    request_id=request_id,
+                )
+
+                response_text = final_result.get("response", "Error generating response")
+
+            except Exception as e:
+                print(f"Error in chat endpoint: {e}")
+                response_text = await asyncio.get_event_loop().run_in_executor(
+                    None, _direct_llm_response, message, persona, history
+                )
+
+        # Cache the response
+        response_cache.set(message, persona, response_text)
+
+    # Store conversation history
     conversation_store[session_id].append({"role": "user", "content": message})
     conversation_store[session_id].append({"role": "assistant", "content": response_text})
-
-    # Trim history if too long
     if len(conversation_store[session_id]) > MAX_HISTORY_MESSAGES * 2:
         conversation_store[session_id] = conversation_store[session_id][-MAX_HISTORY_MESSAGES * 2:]
 
