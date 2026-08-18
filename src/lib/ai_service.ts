@@ -1,12 +1,36 @@
-import { Persona } from './types';
+import { Persona, Message } from './types';
 
 export class AIResponseService {
     /**
      * Generates a response based on the message content and selected persona.
      * Calls the local Python backend.
      */
-    static async generateResponse(message: string, persona: Persona): Promise<{ response: string, requestId?: string }> {
+    static async generateResponse(message: string, persona: Persona, history?: Message[]): Promise<{ response: string, requestId?: string }> {
         const lowerMessage = message.toLowerCase().trim();
+
+        // Check if this is a reply to the chai question
+        if (history && history.length > 0) {
+            const lastMsg = history[history.length - 1];
+            if (lastMsg.role === 'assistant' && lastMsg.content.includes("Chai ka time hai kya")) {
+                const yesPhrases = ["haan", "ha", "yes", "yup", "haan bhai", "ha bhai", "ji haan", "yes please", "sure", "ok", "okay"];
+                const noPhrases = ["nahi", "na", "no", "nope", "nahi yaar", "na bhai", "not now"];
+                if (yesPhrases.some(phrase => lowerMessage.includes(phrase))) {
+                    return {
+                        response: persona === 'desi'
+                            ? "Badiya! Ek mast kadak adrak wali chai ho jaye. Aur batao aur kya madad karun?"
+                            : "Excellent! Let's take a quick tea break. How else can I assist you?"
+                    };
+                }
+                if (noPhrases.some(phrase => lowerMessage.includes(phrase))) {
+                    return {
+                        response: persona === 'desi'
+                            ? "Arre koi baat nahi. Bina chai ke hi kaam chalate hain. Aur batao kya chal raha hai?"
+                            : "No problem. Let's continue. What's on your mind?"
+                    };
+                }
+            }
+        }
+
         
         // Intercept well-being phrases
         const wellbeingPhrases = ["i am good", "i'm good", "im good", "doing well", "i am fine", "i'm fine", "im fine", "all good", "doing good"];

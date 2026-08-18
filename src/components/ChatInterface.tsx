@@ -35,7 +35,7 @@ export default function ChatInterface() {
 
         // Simulate AI response using the service
         try {
-            const { response: responseText, requestId } = await AIResponseService.generateResponse(content, persona);
+            const { response: responseText, requestId } = await AIResponseService.generateResponse(content, persona, messages);
 
             const aiMsg: Message = {
                 id: (Date.now() + 1).toString(),
