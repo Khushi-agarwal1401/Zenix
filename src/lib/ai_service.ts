@@ -1,9 +1,24 @@
 import { Persona, Message } from './types';
 
+// Persistent session ID for conversation continuity across requests
+let _sessionId: string | null = null;
+
+function getSessionId(): string {
+    if (!_sessionId) {
+        _sessionId = crypto.randomUUID();
+    }
+    return _sessionId;
+}
+
+/** Reset session (e.g., when user starts a new chat) */
+export function resetSession(): void {
+    _sessionId = null;
+}
+
 export class AIResponseService {
     /**
      * Generates a response based on the message content and selected persona.
-     * Calls the local Python backend.
+     * Calls the local Python backend with session-based conversation history.
      */
     static async generateResponse(message: string, persona: Persona, history?: Message[]): Promise<{ response: string, requestId?: string }> {
         const lowerMessage = message.toLowerCase().trim();
@@ -99,7 +114,11 @@ export class AIResponseService {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message, persona }),
+                body: JSON.stringify({
+                    message,
+                    persona,
+                    session_id: getSessionId(),
+                }),
             });
 
             if (!response.ok) {
