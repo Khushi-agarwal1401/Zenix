@@ -7,14 +7,21 @@ import asyncio
 import threading
 import uuid
 import json
-import logging
-from collections import defaultdict
 from typing import List, Dict, AsyncGenerator
 
 from pipeline.cache import response_cache
 from pipeline.rate_limiter import rate_limiter
+from pipeline.session_store import session_store
+from pipeline.input_guard import guard_input
+from pipeline.logger import setup_logging, get_logger
+from pipeline.summarizer import conversation_summarizer
 
 app = FastAPI()
+
+# ── Structured Logging ───────────────────────────────────────────────────────
+log_level = "INFO"
+setup_logging(level=log_level)
+log = get_logger("api")
 
 # ── Pipeline state ────────────────────────────────────────────────────────────
 rag_engine = None
@@ -23,11 +30,10 @@ verification_layer = None
 _pipeline_lock = threading.Lock()
 _pipeline_ready = False
 
-# ── Conversation History Store ────────────────────────────────────────────────
-# Maps request_id -> list of messages. We use request_id as a simple session key.
-# In production, replace with Redis/DB-backed store.
-MAX_HISTORY_MESSAGES = 20  # Keep last N messages per session
-conversation_store: Dict[str, List[Dict[str, str]]] = defaultdict(list)
+# ── Conversation History (delegated to session_store) ────────────────────────
+MAX_HISTORY_MESSAGES = 20
+# In-memory cache for fast access; session_store is the source of truth
+conversation_cache: Dict[str, List[Dict[str, str]]] = {}
 
 
 def _init_pipeline_sync():
@@ -36,7 +42,7 @@ def _init_pipeline_sync():
     with _pipeline_lock:
         if _pipeline_ready:
             return
-        print("Background: Initializing RAG Engine and Pipeline...")
+        log.info("Background: Initializing RAG Engine and Pipeline...")
         try:
             from rag_engine import RAGEngine
             from pipeline.router import TaskRouter
@@ -45,9 +51,9 @@ def _init_pipeline_sync():
             task_router = TaskRouter(rag_engine)
             verification_layer = VerificationLayer()
             _pipeline_ready = True
-            print("Background: Pipeline initialized successfully.")
+            log.info("Background: Pipeline initialized successfully.")
         except Exception as e:
-            print(f"Background: Failed to initialize pipeline: {e}")
+            log.error(f"Background: Failed to initialize pipeline: {e}")
 
 
 @app.on_event("startup")
@@ -89,10 +95,13 @@ def log_interaction(query: str, retrieved_results: list, persona: str, request_i
             "persona": persona,
             "retrieved_context": [r['content'] for r in retrieved_results] if retrieved_results else [],
         }
+        import os
+        os.makedirs("data", exist_ok=True)
         with open("data/training_logs.jsonl", "a", encoding="utf-8") as f:
             f.write(json.dumps(log_entry) + "\n")
+        log.info("Interaction logged", extra={"extra_data": {"request_id": request_id, "persona": persona}})
     except Exception as e:
-        print(f"Failed to log interaction: {e}")
+        log.error(f"Failed to log interaction: {e}")
 
 
 # ── Direct LLM fallback (fast path when pipeline not ready) ───────────────────
@@ -134,6 +143,8 @@ def _direct_llm_response(message: str, persona: str, history: List[Dict] = None)
 @app.post("/feedback")
 async def feedback_endpoint(request: FeedbackRequest):
     try:
+        import os
+        os.makedirs("data", exist_ok=True)
         feedback_entry = {
             "timestamp": datetime.now().isoformat(),
             "request_id": request.request_id,
@@ -141,9 +152,10 @@ async def feedback_endpoint(request: FeedbackRequest):
         }
         with open("data/feedback.jsonl", "a", encoding="utf-8") as f:
             f.write(json.dumps(feedback_entry) + "\n")
+        log.info(f"Feedback received: {request.feedback} for {request.request_id[:8]}")
         return {"status": "success"}
     except Exception as e:
-        print(f"Failed to log feedback: {e}")
+        log.error(f"Failed to log feedback: {e}")
         return {"status": "error"}
 
 
@@ -182,9 +194,21 @@ async def rate_limit_stats_endpoint():
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     request_id = str(uuid.uuid4())
-    message = request.message
     persona = request.persona
     session_id = request.session_id or request_id
+
+    # Input sanitization and guard
+    sanitized_message, is_blocked, block_reason = guard_input(request.message)
+    if is_blocked:
+        log.warning(f"Input blocked: {block_reason} (session={session_id[:8]})")
+        blocked_msg = (
+            "I'm sorry, I can't process that request. Let's talk about something else!"
+            if persona == "desi"
+            else "Your request has been blocked for safety reasons. Please rephrase."
+        )
+        return {"response": blocked_msg, "request_id": request_id, "session_id": session_id}
+
+    message = sanitized_message
 
     # Rate limiting
     rate_check = rate_limiter.check(session_id)
@@ -205,8 +229,10 @@ async def chat_endpoint(request: ChatRequest):
             },
         )
 
-    # Check cache (skip for first message in session to ensure freshness)
-    history = conversation_store[session_id]
+    # Load history from persistent store (with in-memory cache)
+    if session_id not in conversation_cache:
+        conversation_cache[session_id] = session_store.get_history(session_id)
+    history = conversation_cache.get(session_id, [])
     is_first_message = len(history) == 0
     cached_response = None if is_first_message else response_cache.get(message, persona)
 
@@ -222,7 +248,7 @@ async def chat_endpoint(request: ChatRequest):
         }
 
         if not _pipeline_ready:
-            print(f"Pipeline not ready — using direct LLM for: {message[:60]}")
+            log.info(f"Pipeline not ready — using direct LLM for: {message[:60]}")
             response_text = await asyncio.get_event_loop().run_in_executor(
                 None, _direct_llm_response, message, persona, history
             )
@@ -242,19 +268,28 @@ async def chat_endpoint(request: ChatRequest):
                 response_text = final_result.get("response", "Error generating response")
 
             except Exception as e:
-                print(f"Error in chat endpoint: {e}")
+                log.error(f"Error in chat endpoint: {e}")
                 response_text = await asyncio.get_event_loop().run_in_executor(
                     None, _direct_llm_response, message, persona, history
                 )
 
-        # Cache the response
-        response_cache.set(message, persona, response_text)
+    # Cache the response
+    response_cache.set(message, persona, response_text)
 
-    # Store conversation history
-    conversation_store[session_id].append({"role": "user", "content": message})
-    conversation_store[session_id].append({"role": "assistant", "content": response_text})
-    if len(conversation_store[session_id]) > MAX_HISTORY_MESSAGES * 2:
-        conversation_store[session_id] = conversation_store[session_id][-MAX_HISTORY_MESSAGES * 2:]
+    # Persist to session store
+    session_store.add_message(session_id, "user", message)
+    session_store.add_message(session_id, "assistant", response_text)
+    conversation_cache[session_id] = session_store.get_history(session_id)
+
+    # Summarize old history if getting too long
+    cached = conversation_cache.get(session_id, [])
+    if conversation_summarizer.should_summarize(cached, MAX_HISTORY_MESSAGES * 2):
+        compressed = conversation_summarizer.summarize_and_compress(
+            cached, MAX_HISTORY_MESSAGES * 2, persona
+        )
+        session_store.replace_history(session_id, compressed)
+        conversation_cache[session_id] = compressed
+        log.info(f"Conversation summarized for session {session_id[:8]}...")
 
     return {
         "response": response_text,
@@ -304,11 +339,10 @@ async def _stream_response(
             None, _direct_llm_response, message, persona, history
         )
 
-    # Store conversation history
-    conversation_store[session_id].append({"role": "user", "content": message})
-    conversation_store[session_id].append({"role": "assistant", "content": full_response})
-    if len(conversation_store[session_id]) > MAX_HISTORY_MESSAGES * 2:
-        conversation_store[session_id] = conversation_store[session_id][-MAX_HISTORY_MESSAGES * 2:]
+    # Persist to session store
+    session_store.add_message(session_id, "user", message)
+    session_store.add_message(session_id, "assistant", full_response)
+    conversation_cache[session_id] = session_store.get_history(session_id)
 
     # Stream the response word-by-word for a typewriter effect
     words = full_response.split(" ")
@@ -341,7 +375,23 @@ async def chat_stream_endpoint(request: ChatRequest):
     """SSE streaming endpoint — returns Server-Sent Events."""
     request_id = str(uuid.uuid4())
     session_id = request.session_id or request_id
-    history = conversation_store[session_id]
+
+    # Input sanitization and guard
+    sanitized_message, is_blocked, block_reason = guard_input(request.message)
+    if is_blocked:
+        log.warning(f"Input blocked (stream): {block_reason} (session={session_id[:8]})")
+        blocked_msg = (
+            "I'm sorry, I can't process that request. Let's talk about something else!"
+            if request.persona == "desi"
+            else "Your request has been blocked for safety reasons. Please rephrase."
+        )
+        async def blocked_stream():
+            yield f"data: {{\"type\": \"token\", \"content\": \"{blocked_msg}\", \"done\": true}}\n\n"
+        return StreamingResponse(blocked_stream(), media_type="text/event-stream")
+
+    if session_id not in conversation_cache:
+        conversation_cache[session_id] = session_store.get_history(session_id)
+    history = conversation_cache.get(session_id, [])
 
     return StreamingResponse(
         _stream_response(request.message, request.persona, session_id, request_id, history),

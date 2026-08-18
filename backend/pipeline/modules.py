@@ -4,6 +4,10 @@ from datetime import datetime
 from .interface import PipelineModule
 from .llm_client import LLMClient
 from .system_prompt import get_system_prompt
+from .hallucination_detector import detect_hallucination
+from .logger import get_logger
+
+log = get_logger("modules")
 
 
 class SystemModule(PipelineModule):
@@ -144,13 +148,30 @@ class RAGModule(PipelineModule):
 
                 if generated_answer and generated_answer.strip():
                     response_text = generated_answer.strip()
+
+                    # Hallucination detection
+                    context_docs = [r["content"] for r in results]
+                    hallucination_check = detect_hallucination(response_text, context_docs)
+                    context["hallucination_check"] = hallucination_check
+
+                    if hallucination_check["is_hallucinated"]:
+                        log.warning(
+                            f"Hallucination detected (score={hallucination_check['hallucination_score']}) "
+                            f"— {hallucination_check['unsupported_count']} unsupported claims"
+                        )
+                        # Add disclaimer but still return the response
+                        response_text += (
+                            "\n\n⚠️ Note: Some details in this response may not be fully "
+                            "supported by the available information. Please verify important facts."
+                        )
+
                     source = "RAG_GENERATED"
                 else:
                     response_text = f"Based on my knowledge base:\n{context_text}"
                     source = "RAG_FALLBACK"
 
             except Exception as e:
-                print(f"RAG Generation failed: {e}")
+                log.error(f"RAG Generation failed: {e}")
                 response_text = f"Based on my knowledge base:\n{context_text}\n(Generation failed)"
                 source = "RAG_FALLBACK"
         else:
