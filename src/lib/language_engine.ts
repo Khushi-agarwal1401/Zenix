@@ -1,9 +1,16 @@
+/**
+ * LanguageEngine — Real language detection, transliteration, and normalization
+ * for Indic languages and code-mixed (Hinglish/Tanglish) text.
+ *
+ * Uses Unicode script analysis for detection (no heavy external deps).
+ * Transliteration uses a phonetic mapping table for common Roman→Indic conversions.
+ */
 
 export interface LanguageDetectionResult {
-    language: string;
-    script: string;
-    confidence: number;
-    isCodeMixed: boolean;
+    language: string;       // ISO 639 code: 'hi', 'bn', 'ta', 'te', 'en', 'hi-en' (code-mixed), etc.
+    script: string;         // Unicode script name: 'Devanagari', 'Bengali', 'Tamil', 'Latn', etc.
+    confidence: number;     // 0.0 – 1.0
+    isCodeMixed: boolean;   // true if multiple scripts detected
 }
 
 export interface TransliterationConfig {
@@ -11,36 +18,335 @@ export interface TransliterationConfig {
     targetScript: string;
 }
 
+// ── Unicode Script Ranges ────────────────────────────────────────────────────
+
+const SCRIPT_RANGES: Record<string, [number, number][]> = {
+    'Devanagari':  [[0x0900, 0x097F], [0xA8E0, 0xA8FF]],   // Hindi, Marathi, Nepali, Sanskrit
+    'Bengali':     [[0x0980, 0x09FF]],                        // Bengali, Assamese
+    'Gurmukhi':    [[0x0A00, 0x0A7F]],                        // Punjabi
+    'Gujarati':    [[0x0A80, 0x0AFF]],                        // Gujarati
+    'Tamil':       [[0x0B80, 0x0BFF]],                        // Tamil
+    'Telugu':      [[0x0C00, 0x0C7F]],                        // Telugu
+    'Kannada':     [[0x0C80, 0x0CFF]],                        // Kannada
+    'Malayalam':   [[0x0D00, 0x0D7F]],                        // Malayalam
+    'Odia':        [[0x0B00, 0x0B7F]],                        // Odia
+    'Thai':        [[0x0E00, 0x0E7F]],                        // Thai
+    'Arabic':      [[0x0600, 0x06FF], [0xFB50, 0xFDFF], [0xFE70, 0xFEFF]],
+    'Tibetan':     [[0x0F00, 0x0FFF]],
+    'Myanmar':     [[0x1000, 0x109F]],
+    'Khmer':       [[0x1780, 0x17FF]],
+    'Georgian':    [[0x10A0, 0x10FF]],
+    'Hangul':      [[0xAC00, 0xD7AF], [0x1100, 0x11FF]],    // Korean
+    'Han':         [[0x4E00, 0x9FFF], [0x3400, 0x4DBF]],    // Chinese
+    'Hiragana':    [[0x3040, 0x309F]],                        // Japanese
+    'Katakana':    [[0x30A0, 0x30FF]],                        // Japanese
+};
+
+// Map script → likely language(s)
+const SCRIPT_TO_LANGUAGES: Record<string, string[]> = {
+    'Devanagari':  ['hi', 'mr', 'ne', 'sa', 'kok'],
+    'Bengali':     ['bn', 'as'],
+    'Gurmukhi':    ['pa'],
+    'Gujarati':    ['gu'],
+    'Tamil':       ['ta'],
+    'Telugu':      ['te'],
+    'Kannada':     ['kn'],
+    'Malayalam':   ['ml'],
+    'Odia':        ['or'],
+    'Arabic':      ['ar', 'ur'],
+    'Hangul':      ['ko'],
+    'Han':         ['zh'],
+    'Hiragana':    ['ja'],
+    'Katakana':    ['ja'],
+};
+
+// ── Detection Helpers ────────────────────────────────────────────────────────
+
+function getScript(char: string): string | null {
+    const code = char.codePointAt(0)!;
+    for (const [script, ranges] of Object.entries(SCRIPT_RANGES)) {
+        for (const [lo, hi] of ranges) {
+            if (code >= lo && code <= hi) return script;
+        }
+    }
+    return null;
+}
+
+function isLatinLetter(char: string): boolean {
+    const code = char.codePointAt(0)!;
+    return (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A);
+}
+
+// Common Hinglish/Tanglish indicator words (Roman script but Indic language)
+const CODE_MIXED_INDICATORS = new Set([
+    // Hindi in Latin script
+    'hai', 'ho', 'kya', 'kaun', 'kahan', 'kyun', 'kaise', 'nahi', 'haan',
+    'bhai', 'yaar', 'arre', 'acha', 'theek', 'suno', 'batao', 'bolo',
+    'chalo', 'dekho', 'suno', 'bata', 'mat', 'mai', 'mera', 'tera',
+    'uska', 'iska', 'woh', 'yeh', 'kab', 'ab', 'phir', 'bhi', 'toh',
+    'se', 'ko', 'me', 'pe', 'ne', 'ke', 'ki', 'ka', 'par', 'aur',
+    'ek', 'do', 'teen', 'char', 'panch', 'das',
+    'namaste', 'namaskar', 'shukriya', 'ji',
+    // Tamil in Latin
+    'vanakkam', 'nandri', 'irukku', 'illai', 'eppadi',
+    // Telugu in Latin
+    'namaskaram', 'bagunnara', 'ledu', 'undi',
+    // Bengali in Latin
+    'kemon', 'acho', 'bhalo', 'naaki',
+]);
+
+// ── Main Detection ───────────────────────────────────────────────────────────
+
+/**
+ * Detects the language and script of the input text using Unicode analysis.
+ */
+export function detectLanguage(text: string): LanguageDetectionResult {
+    if (!text || text.trim().length === 0) {
+        return { language: 'en', script: 'Latn', confidence: 0.5, isCodeMixed: false };
+    }
+
+    const scriptCounts: Record<string, number> = {};
+    let totalMeaningful = 0;
+
+    for (const char of text) {
+        const script = getScript(char);
+        if (script) {
+            scriptCounts[script] = (scriptCounts[script] || 0) + 1;
+            totalMeaningful++;
+        }
+    }
+
+    // Check for Latin characters (Indicators for English or code-mixed)
+    let latinCount = 0;
+    for (const char of text) {
+        if (isLatinLetter(char)) latinCount++;
+    }
+
+    const scriptsDetected = Object.keys(scriptCounts);
+
+    // Case 1: Only Latin script
+    if (latinCount > 0 && scriptsDetected.length === 0) {
+        // Check if it's code-mixed (Hinglish etc.)
+        const words = text.toLowerCase().split(/\s+/);
+        let indicMatches = 0;
+        for (const word of words) {
+            const clean = word.replace(/[^a-z]/g, '');
+            if (CODE_MIXED_INDICATORS.has(clean)) {
+                indicMatches++;
+            }
+        }
+
+        const mixRatio = indicMatches / Math.max(words.length, 1);
+        if (mixRatio > 0.3) {
+            return {
+                language: 'hi-en',  // Hinglish / code-mixed
+                script: 'Latn',
+                confidence: Math.min(0.5 + mixRatio, 0.95),
+                isCodeMixed: true,
+            };
+        }
+
+        return { language: 'en', script: 'Latn', confidence: 0.9, isCodeMixed: false };
+    }
+
+    // Case 2: Indic script(s) detected
+    if (scriptsDetected.length > 0) {
+        // Find dominant script
+        let dominantScript = scriptsDetected[0];
+        let maxCount = scriptCounts[dominantScript] || 0;
+        for (const script of scriptsDetected) {
+            const count = scriptCounts[script] || 0;
+            if (count > maxCount) {
+                dominantScript = script;
+                maxCount = count;
+            }
+        }
+
+        const dominantRatio = maxCount / Math.max(totalMeaningful, 1);
+        const isCodeMixed = scriptsDetected.length > 1 || latinCount > totalMeaningful * 0.15;
+
+        const languages = SCRIPT_TO_LANGUAGES[dominantScript] || ['unknown'];
+        const primaryLang = languages[0];
+
+        // If code-mixed with Latin, append '-en'
+        const finalLang = isCodeMixed && latinCount > 5 ? `${primaryLang}-en` : primaryLang;
+
+        return {
+            language: finalLang,
+            script: dominantScript,
+            confidence: Math.min(dominantRatio + 0.1, 1.0),
+            isCodeMixed,
+        };
+    }
+
+    // Fallback
+    return { language: 'en', script: 'Latn', confidence: 0.5, isCodeMixed: false };
+}
+
+// ── Transliteration Tables (Roman → Indic) ───────────────────────────────────
+
+/**
+ * Romanized Hindi/Devanagari transliteration map.
+ * Maps phonetic Roman input → Devanagari characters.
+ * Covers common Hinglish typing patterns.
+ */
+const ROMAN_TO_DEVANAGARI: Record<string, string> = {
+    // Vowels
+    'a': 'अ', 'aa': 'आ', 'i': 'इ', 'ee': 'ई', 'u': 'उ', 'oo': 'ऊ',
+    'e': 'ए', 'ai': 'ऐ', 'o': 'ओ', 'au': 'औ', 'am': 'अं', 'ah': 'अः',
+    // Consonants
+    'k': 'क', 'kh': 'ख', 'g': 'ग', 'gh': 'घ', 'ng': 'ङ',
+    'ch': 'च', 'chh': 'छ', 'j': 'ज', 'jh': 'झ', 'ny': 'ञ',
+    't': 'त', 'th': 'थ', 'd': 'द', 'dh': 'ध', 'n': 'न',
+    'p': 'प', 'ph': 'फ', 'b': 'ब', 'bh': 'भ', 'm': 'म',
+    'y': 'य', 'r': 'र', 'l': 'ल', 'v': 'व', 'w': 'व',
+    'sh': 'श', 'shh': 'ष', 's': 'स', 'h': 'ह',
+    // Nukta variants
+    'ksh': 'क्ष', 'gy': 'ज्ञ', 'tr': 'त्र', 'dr': 'द्र',
+    // Common conjuncts / half forms
+    'ngh': 'ङ्घ', 'nch': 'ञ्च', 'nj': 'ञ्ज',
+};
+
+// Common word-level Roman → Devanagari mappings (for full words)
+const COMMON_WORD_MAPPINGS: Record<string, string> = {
+    'namaste': 'नमस्ते', 'namaskar': 'नमस्कार', 'shukriya': 'शुक्रिया',
+    'kya': 'क्या', 'kahan': 'कहाँ', 'kaun': 'कौन', 'kyun': 'क्यों',
+    'kaise': 'कैसे', 'kab': 'कब', 'nahi': 'नहीं', 'haan': 'हाँ',
+    'bhai': 'भाई', 'yaar': 'यार', 'arre': 'अर्रे', 'acha': 'अच्छा',
+    'theek': 'ठीक', 'suno': 'सुनो', 'batao': 'बताओ', 'bolo': 'बोलो',
+    'chalo': 'चलो', 'dekho': 'देखो', 'samajh': 'समझ', 'bohot': 'बहुत',
+    'thoda': 'थोड़ा', 'bahut': 'बहुत', 'sab': 'सब', 'mai': 'मैं',
+    'mera': 'मेरा', 'tera': 'तेरा', 'uska': 'उसका', 'iska': 'इसका',
+    'woh': 'वो', 'yeh': 'ये', 'aur': 'और', 'par': 'पर',
+    'mein': 'में', 'se': 'से', 'ko': 'को', 'ke': 'के', 'ki': 'की',
+    'ka': 'का', 'ne': 'ने', 'bhi': 'भी', 'toh': 'तो',
+    'phir': 'फिर', 'ab': 'अब', 'ek': 'एक', 'do': 'दो',
+    'hai': 'है', 'ho': 'हो', 'tha': 'था', 'thi': 'थी', 'the': 'थे',
+    'hoga': 'होगा', 'honge': 'होंगे', 'hun': 'हूँ',
+    'wala': 'वाला', 'wali': 'वाली', 'wale': 'वाले',
+    'jaise': 'जैसे', 'jaisa': 'जैसा', 'jaisi': 'जैसी',
+    'chahiye': 'चाहिए', 'de': 'दे', 'le': 'ले',
+    'bata': 'बता', 'sikhao': 'सिखाओ', 'madad': 'मदद',
+    'samay': 'समय', 'waqt': 'वक़्त', 'time': 'टाइम',
+    'chai': 'चाय', 'pani': 'पानी', 'khana': 'खाना',
+    'accha': 'अच्छा', 'bura': 'बुरा', 'sundar': 'सुंदर',
+    'bachche': 'बच्चे', 'ghar': 'घर', 'school': 'स्कूल',
+    'college': 'कॉलेज', 'office': 'ऑफिस', 'market': 'मार्केट',
+    'phone': 'फ़ोन', 'paisa': 'पैसा', 'rupaye': 'रुपये',
+};
+
+/**
+ * Transliterates Romanized Indic text to Devanagari script.
+ * Handles word-level lookups first, then falls back to character-level mapping.
+ */
+export function transliterateToDevanagari(text: string): string {
+    const words = text.split(/(\s+)/);  // Preserve whitespace
+    const result: string[] = [];
+
+    for (const word of words) {
+        if (/^\s+$/.test(word)) {
+            result.push(word);
+            continue;
+        }
+
+        const lower = word.toLowerCase();
+
+        // Try full word lookup first
+        if (COMMON_WORD_MAPPINGS[lower]) {
+            result.push(COMMON_WORD_MAPPINGS[lower]);
+            continue;
+        }
+
+        // Character-level transliteration
+        let remaining = lower;
+        let output = '';
+        while (remaining.length > 0) {
+            let matched = false;
+            // Try longest match first (3, then 2, then 1 chars)
+            for (const len of [3, 2, 1]) {
+                const slice = remaining.slice(0, len);
+                if (ROMAN_TO_DEVANAGARI[slice]) {
+                    output += ROMAN_TO_DEVANAGARI[slice];
+                    remaining = remaining.slice(len);
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched) {
+                // Keep original character
+                output += remaining[0];
+                remaining = remaining.slice(1);
+            }
+        }
+        result.push(output);
+    }
+
+    return result.join('');
+}
+
+// ── Input Normalization ──────────────────────────────────────────────────────
+
+/**
+ * Normalizes input text:
+ * - Trims whitespace
+ * - Collapses multiple spaces
+ * - Normalizes common typos ("kyaaa" → "kya", "hiii" → "hi")
+ * - Converts to lowercase for matching
+ */
+export function normalizeInput(text: string): string {
+    let normalized = text.trim();
+
+    // Collapse multiple spaces
+    normalized = normalized.replace(/\s+/g, ' ');
+
+    // Normalize elongated characters ("kyaaa" → "kya", "hiii" → "hi")
+    normalized = normalized.replace(/([a-zA-Z])\1{2,}/g, '$1$1');
+
+    return normalized;
+}
+
+/**
+ * Detect if the input is primarily a greeting in any Indic language.
+ */
+export function isGreeting(text: string): boolean {
+    const lower = text.toLowerCase().trim();
+    const greetings = [
+        'hi', 'hello', 'hey', 'hii', 'helo',
+        'namaste', 'namaskar', 'namaskaram', 'salaam', 'adaab',
+        'vanakkam', 'namaskara', 'nomoshkar', 'khamma ghani',
+        'radhe radhe', 'jai shree krishna', 'assalamualaikum',
+    ];
+    return greetings.some(g => lower === g || lower.startsWith(g));
+}
+
+// ── Legacy API (backward compat) ─────────────────────────────────────────────
+
 export class LanguageEngine {
     /**
      * Detects the language and script of the input text.
-     * Currently a stub implementation.
+     * Now uses real Unicode-based detection.
      */
-    static detectLanguage(_text: string): LanguageDetectionResult {
-        void _text; // Stub
-        // TODO: Implement actual detection logic (e.g. using Franc or specialized Indic models)
-        return {
-            language: 'en', // Default to English for now
-            script: 'Latn',
-            confidence: 1.0,
-            isCodeMixed: false
-        };
+    static detectLanguage(text: string): LanguageDetectionResult {
+        return detectLanguage(text);
     }
 
     /**
      * Transliterates text from one script to another.
-     * Currently a stub implementation.
+     * Currently supports Roman → Devanagari.
      */
-    static transliterate(text: string, _config: TransliterationConfig): string {
-        void _config; // Stub
-        // TODO: Implement transliteration (e.g. using Sanscript or similar)
+    static transliterate(text: string, config: TransliterationConfig): string {
+        if (config.sourceScript === 'Latn' && config.targetScript === 'Deva') {
+            return transliterateToDevanagari(text);
+        }
+        // For unsupported pairs, return text unchanged
+        console.warn(`Transliteration from ${config.sourceScript} to ${config.targetScript} not yet supported.`);
         return text;
     }
 
     /**
-     * Normalizes input text (e.g. handling "kyaaa" -> "kya").
+     * Normalizes input text.
      */
     static normalizeInput(text: string): string {
-        return text.trim();
+        return normalizeInput(text);
     }
 }

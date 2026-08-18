@@ -6,12 +6,13 @@ from .query_rewriter import QueryRewriter
 from .modules import SystemModule, ChatModule, RAGModule
 from .agent import AgentModule
 from .generation import GenerativeModule
+from .language_detector import detect_language, normalize_input
 
 
 class TaskRouter:
     """
     Routes requests to appropriate modules based on intent.
-    Now passes persona and conversation history through context.
+    Now includes language detection and input normalization.
     """
 
     def __init__(self, rag_engine):
@@ -27,25 +28,33 @@ class TaskRouter:
 
     async def route_and_process(self, input_data: str, context: Dict[str, Any]) -> Dict[str, Any]:
 
-        # 0. Entity Extraction
-        entities = await self.entity_extractor.process(input_data, context)
+        # 0. Normalize and detect language
+        normalized = normalize_input(input_data)
+        lang_info = detect_language(normalized)
+        context["language"] = lang_info
+
+        print(f"Language detected: {lang_info['language']} "
+              f"(script={lang_info['script']}, code_mixed={lang_info['is_code_mixed']})")
+
+        # 1. Entity Extraction
+        entities = await self.entity_extractor.process(normalized, context)
         context["entities"] = entities.get("entities")
 
-        # 1. Classify Intent
-        classification = await self.intent_classifier.process(input_data, context)
+        # 2. Classify Intent
+        classification = await self.intent_classifier.process(normalized, context)
         intent = classification.get("intent")
         context["intent_info"] = classification
 
-        # 1.5 Query Rewriting (if needed)
-        processed_input = input_data
+        # 3. Query Rewriting (if needed)
+        processed_input = normalized
         if intent == IntentClassifier.INTENT_FACTUAL:
-            rewrite_result = await self.query_rewriter.process(input_data, context)
+            rewrite_result = await self.query_rewriter.process(normalized, context)
             if rewrite_result.get("rewritten_query"):
                 processed_input = rewrite_result.get("rewritten_query")
                 context["rewritten_query"] = processed_input
                 print(f"Query rewritten to: {processed_input}")
 
-        # 2. Route
+        # 4. Route
         module = None
         persona = context.get("persona", "desi")
 
@@ -73,5 +82,5 @@ class TaskRouter:
         else:
             module = self.chat_module
 
-        # 3. Process
+        # 5. Process
         return await module.process(processed_input, context)
