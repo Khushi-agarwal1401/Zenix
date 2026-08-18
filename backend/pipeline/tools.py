@@ -10,6 +10,7 @@ import json
 import sqlite3
 import urllib.request
 import urllib.error
+import urllib.parse
 from typing import Any, Dict
 from datetime import datetime
 
