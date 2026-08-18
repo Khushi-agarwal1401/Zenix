@@ -136,6 +136,85 @@ body {
   }
 }
 
+/* ── Message prose / markdown styling ────────────────────────────── */
+
+.msg-content h1 { font-size: 1.25em; font-weight: 700; margin: 0.75em 0 0.4em; }
+.msg-content h2 { font-size: 1.1em; font-weight: 600; margin: 0.6em 0 0.35em; }
+.msg-content h3 { font-size: 1em; font-weight: 600; margin: 0.5em 0 0.3em; }
+
+.msg-content p { margin: 0.35em 0; }
+.msg-content p:first-child { margin-top: 0; }
+.msg-content p:last-child { margin-bottom: 0; }
+
+.msg-content ul, .msg-content ol {
+  padding-left: 1.4em;
+  margin: 0.4em 0;
+}
+.msg-content li { margin: 0.15em 0; }
+.msg-content li::marker { color: #a1a1aa; }
+@media (prefers-color-scheme: dark) {
+  .msg-content li::marker { color: #52525b; }
+}
+
+.msg-content blockquote {
+  border-left: 3px solid #8b5cf6;
+  padding: 0.5em 0.85em;
+  margin: 0.6em 0;
+  background: rgba(139, 92, 246, 0.04);
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: inherit;
+}
+@media (prefers-color-scheme: dark) {
+  .msg-content blockquote {
+    background: rgba(139, 92, 246, 0.08);
+    border-left-color: #a78bfa;
+  }
+}
+.msg-content blockquote p { margin: 0.2em 0; }
+
+.msg-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  font-size: 0.9em;
+}
+.msg-content th, .msg-content td {
+  border: 1px solid #e4e4e7;
+  padding: 0.45em 0.75em;
+  text-align: left;
+}
+@media (prefers-color-scheme: dark) {
+  .msg-content th, .msg-content td { border-color: #27272a; }
+}
+.msg-content th {
+  background: #f4f4f5;
+  font-weight: 600;
+}
+@media (prefers-color-scheme: dark) {
+  .msg-content th { background: #18181b; }
+}
+
+.msg-content hr {
+  border: none;
+  height: 1px;
+  background: #e4e4e7;
+  margin: 0.8em 0;
+}
+@media (prefers-color-scheme: dark) {
+  .msg-content hr { background: #27272a; }
+}
+
+.msg-content a {
+  color: #7c3aed;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.msg-content a:hover { color: #6d28d9; }
+@media (prefers-color-scheme: dark) {
+  .msg-content a { color: #a78bfa; }
+  .msg-content a:hover { color: #c4b5fd; }
+}
+
 /* Code block base styling */
 .code-block pre {
   background: #18181b;
@@ -161,6 +240,20 @@ body {
   font-size: inherit;
 }
 
+/* ── Message hover effect ───────────────────────────────────────── */
+.msg-row {
+  border-radius: 1rem;
+  transition: background-color 0.15s ease;
+}
+.msg-row:hover {
+  background: rgba(0, 0, 0, 0.015);
+}
+@media (prefers-color-scheme: dark) {
+  .msg-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+}
+
 /* Smooth focus ring */
 .focus-ring {
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
@@ -168,4 +261,36 @@ body {
 .focus-ring:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
+}
+
+/* ── Suggestion chip hover glow ─────────────────────────────────── */
+.suggestion-chip {
+  position: relative;
+  overflow: hidden;
+}
+.suggestion-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.08), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.suggestion-chip:hover::before {
+  opacity: 1;
+}
+
+/* ── Textarea auto-resize helper ────────────────────────────────── */
+.msg-textarea {
+  field-sizing: content;
+  min-height: 2.5rem;
+  max-height: 8rem;
+  resize: none;
+}
+.msg-textarea::-webkit-scrollbar {
+  width: 4px;
+}
+.msg-textarea::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 130, 0.2);
+  border-radius: 2px;
 }

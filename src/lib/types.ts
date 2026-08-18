@@ -5,6 +5,7 @@ export interface Message {
     role: 'user' | 'assistant';
     content: string;
     timestamp: string;
-    persona?: Persona; // The persona active when this message was generated
-    requestId?: string; // For feedback tracking
+    persona?: Persona;
+    requestId?: string;
+    isError?: boolean;
 }

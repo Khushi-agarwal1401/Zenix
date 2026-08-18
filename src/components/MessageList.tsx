@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import clsx from 'clsx';
-import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown, ArrowDown } from 'lucide-react';
+import { Bot, User, Copy, Check, ThumbsUp, ThumbsDown, ArrowDown, AlertTriangle } from 'lucide-react';
 import { Message } from '@/lib/types';
 
 interface MessageListProps {
@@ -11,8 +11,7 @@ interface MessageListProps {
 
 /* ── Custom Markdown Components ────────────────────────────────── */
 
-function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLPreElement> & { children?: React.ReactNode }) {
-    void props;
+function CodeBlock({ className, children, ...rest }: React.HTMLAttributes<HTMLPreElement> & { children?: React.ReactNode }) {
     const [copied, setCopied] = React.useState(false);
     const match = /language-(\w+)/.exec(className || '');
     const language = match ? match[1] : '';
@@ -24,8 +23,8 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLP
                 .map(c => {
                     if (typeof c === 'string') return c;
                     if (React.isValidElement(c)) {
-                        const props = c.props as Record<string, unknown>;
-                        return props.children ?? '';
+                        const p = c.props as Record<string, unknown>;
+                        return p.children ?? '';
                     }
                     return '';
                 })
@@ -51,7 +50,7 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLP
             >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
-            <pre className={clsx("overflow-x-auto rounded-xl text-[13px] leading-relaxed", className)} {...props}>
+            <pre className={clsx("overflow-x-auto rounded-xl text-[13px] leading-relaxed", className)} {...rest}>
                 {children}
             </pre>
         </div>
@@ -60,7 +59,6 @@ function CodeBlock({ className, children, ...props }: React.HTMLAttributes<HTMLP
 
 const markdownComponents: Components = {
     pre: ({ children, ...props }) => {
-        // If the child is a code element, use our CodeBlock wrapper
         const child = React.Children.toArray(children)[0] as React.ReactElement<Record<string, unknown>>;
         if (child && child.type === 'code') {
             const codeProps = child.props as { className?: string; children?: React.ReactNode };
@@ -123,28 +121,12 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
         }
     }, [messages, isLoading, isNearBottom]);
 
-    /* ── Scroll detection (top/bottom indicators + scroll-to-bottom button) ── */
+    /* ── Scroll detection ── */
     React.useEffect(() => {
         const scroller = scrollerRef.current;
         const topSentinel = topSentinelRef.current;
         const bottomSentinel = bottomSentinelRef.current;
         if (!scroller) return;
-
-        // Native scroll-state support
-        if (typeof CSS !== 'undefined' && CSS.supports('container-type', 'scroll-state')) {
-            // Still need scroll-to-bottom detection via scroll event
-            const handleScroll = () => {
-                const { scrollTop, scrollHeight, clientHeight } = scroller;
-                const atBottom = scrollHeight - scrollTop - clientHeight < 80;
-                setIsNearBottom(atBottom);
-                setShowScrollBtn(!atBottom);
-            };
-            scroller.addEventListener('scroll', handleScroll, { passive: true });
-            return () => scroller.removeEventListener('scroll', handleScroll);
-        }
-
-        // Fallback: IntersectionObserver
-        if (!topSentinel || !bottomSentinel) return;
 
         const handleScroll = () => {
             const { scrollTop, scrollHeight, clientHeight } = scroller;
@@ -153,6 +135,12 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
             setShowScrollBtn(!atBottom);
         };
         scroller.addEventListener('scroll', handleScroll, { passive: true });
+
+        if (typeof CSS !== 'undefined' && CSS.supports('container-type', 'scroll-state')) {
+            return () => scroller.removeEventListener('scroll', handleScroll);
+        }
+
+        if (!topSentinel || !bottomSentinel) return () => scroller.removeEventListener('scroll', handleScroll);
 
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
@@ -211,7 +199,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
             <div ref={topSentinelRef} className="h-0 w-0 absolute top-0" />
             <div className="indicator-top" />
 
-            {/* ── Messages ── */}
+            {/* ── Welcome + Messages ── */}
             {messages.map((msg, index) => {
                 const prevMsg = index > 0 ? messages[index - 1] : null;
                 const nextMsg = index < messages.length - 1 ? messages[index + 1] : null;
@@ -220,10 +208,10 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                 const dateKey = getDateKey(msg.timestamp);
                 const prevDateKey = prevMsg ? getDateKey(prevMsg.timestamp) : null;
                 const showDateSeparator = dateKey !== prevDateKey;
+                const isError = msg.isError;
 
                 return (
                     <React.Fragment key={msg.id}>
-                        {/* Date separator */}
                         {showDateSeparator && (
                             <div className="flex items-center gap-3 py-4">
                                 <div className="flex-1 h-px bg-zinc-200/60 dark:bg-zinc-800/60" />
@@ -237,141 +225,132 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                         <div
                             style={index === messages.length - 1 ? { scrollInitialTarget: 'nearest' } as React.CSSProperties : undefined}
                             className={clsx(
-                                "flex max-w-3xl mx-auto group animate-message-enter",
+                                "flex max-w-3xl mx-auto group animate-message-enter msg-row px-2 py-1",
                                 msg.role === 'user' ? "justify-end" : "justify-start",
-                                // Tighter spacing for consecutive messages from same sender
                                 !isFirstInGroup && "mt-1",
                                 isFirstInGroup && "mt-4",
                             )}
                         >
-                            {/* Bot avatar — only on first in group */}
+                            {/* Bot avatar */}
                             {msg.role === 'assistant' && (
-                                <div className={clsx(
-                                    "w-8 h-8 shrink-0 transition-opacity duration-200",
-                                    !isFirstInGroup ? "invisible" : "mt-0.5"
-                                )}>
-                                    {isFirstInGroup ? (
+                                <div className={clsx("w-8 h-8 shrink-0", !isFirstInGroup ? "invisible" : "mt-0.5")}>
+                                    {isFirstInGroup && (
                                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-violet-500/25">
                                             <Bot className="w-4 h-4" />
                                         </div>
-                                    ) : null}
+                                    )}
                                 </div>
                             )}
 
-                            <div
-                                className={clsx(
-                                    "relative px-4 py-3 text-sm sm:text-[15px] leading-relaxed transition-all duration-200 max-w-[82%]",
-                                    msg.role === 'user'
-                                        ? clsx(
-                                            "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-lg shadow-zinc-900/10 dark:shadow-zinc-100/10",
-                                            // Roundness: first/last in group get more rounding
-                                            isFirstInGroup && isLastInGroup && "rounded-2xl",
-                                            isFirstInGroup && !isLastInGroup && "rounded-2xl rounded-br-md",
-                                            !isFirstInGroup && isLastInGroup && "rounded-2xl rounded-tr-md",
-                                            !isFirstInGroup && !isLastInGroup && "rounded-2xl rounded-r-md",
-                                        )
-                                        : clsx(
-                                            "bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 shadow-sm ring-1 ring-zinc-900/[0.04] dark:ring-white/[0.06] border border-zinc-100 dark:border-zinc-800",
-                                            isFirstInGroup && isLastInGroup && "rounded-2xl",
-                                            isFirstInGroup && !isLastInGroup && "rounded-2xl rounded-bl-md",
-                                            !isFirstInGroup && isLastInGroup && "rounded-2xl rounded-tl-md",
-                                            !isFirstInGroup && !isLastInGroup && "rounded-2xl rounded-l-md",
-                                        )
-                                )}
-                            >
-                                <div className="prose prose-sm dark:prose-invert max-w-none break-words prose-p:leading-relaxed prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-800">
-                                    <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
-                                </div>
-
-                                {/* Meta row — only on last message in group */}
-                                {isLastInGroup && (
-                                    <div className="flex items-center justify-end gap-1.5 mt-2">
-                                        {/* Persona badge for assistant */}
-                                        {msg.role === 'assistant' && msg.persona && (
-                                            <span className={clsx(
-                                                "text-[10px] font-medium px-1.5 py-0.5 rounded-md mr-1",
-                                                msg.persona === 'desi'
-                                                    ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-                                                    : "bg-sky-50 text-sky-600 dark:bg-sky-950/30 dark:text-sky-400"
-                                            )}>
-                                                {msg.persona === 'desi' ? '☕ Desi' : '📋 Sarkari'}
-                                            </span>
-                                        )}
-
-                                        {/* Feedback buttons */}
-                                        {msg.role === 'assistant' && msg.requestId && (
-                                            <div className="flex gap-0.5 mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                <button
-                                                    onClick={() => handleFeedback(msg.requestId!, 'up')}
-                                                    className={clsx(
-                                                        "p-1.5 rounded-lg transition-all duration-200",
-                                                        feedbackState[msg.requestId!] === 'up'
-                                                            ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-                                                            : "text-zinc-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                                                    )}
-                                                    disabled={!!feedbackState[msg.requestId!]}
-                                                >
-                                                    <ThumbsUp className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleFeedback(msg.requestId!, 'down')}
-                                                    className={clsx(
-                                                        "p-1.5 rounded-lg transition-all duration-200",
-                                                        feedbackState[msg.requestId!] === 'down'
-                                                            ? "text-red-500 bg-red-50 dark:bg-red-950/30"
-                                                            : "text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
-                                                    )}
-                                                    disabled={!!feedbackState[msg.requestId!]}
-                                                >
-                                                    <ThumbsDown className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        <p suppressHydrationWarning className="text-[10px] opacity-40 text-right tabular-nums">
-                                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </p>
-                                        <button
-                                            onClick={() => handleCopy(msg.id, msg.content)}
-                                            className={clsx(
-                                                "p-1.5 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 focus:opacity-100",
-                                                msg.role === 'user'
-                                                    ? "hover:bg-white/10 text-white/60 hover:text-white"
-                                                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
-                                            )}
-                                            aria-label="Copy message"
-                                        >
-                                            {copiedId === msg.id ? (
-                                                <Check className="w-3.5 h-3.5" />
-                                            ) : (
-                                                <Copy className="w-3.5 h-3.5" />
-                                            )}
-                                        </button>
+                            {/* Error bubble */}
+                            {isError ? (
+                                <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-800/40 max-w-[82%]">
+                                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                                    <div className="msg-content text-sm text-red-700 dark:text-red-300">
+                                        <ReactMarkdown>{msg.content}</ReactMarkdown>
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            ) : (
+                                <div
+                                    className={clsx(
+                                        "relative px-4 py-3 text-sm sm:text-[15px] leading-relaxed transition-all duration-200 max-w-[82%]",
+                                        msg.role === 'user'
+                                            ? clsx(
+                                                "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-lg shadow-zinc-900/10 dark:shadow-zinc-100/10",
+                                                isFirstInGroup && isLastInGroup && "rounded-2xl",
+                                                isFirstInGroup && !isLastInGroup && "rounded-2xl rounded-br-md",
+                                                !isFirstInGroup && isLastInGroup && "rounded-2xl rounded-tr-md",
+                                                !isFirstInGroup && !isLastInGroup && "rounded-2xl rounded-r-md",
+                                            )
+                                            : clsx(
+                                                "bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 shadow-sm ring-1 ring-zinc-900/[0.04] dark:ring-white/[0.06] border border-zinc-100 dark:border-zinc-800",
+                                                isFirstInGroup && isLastInGroup && "rounded-2xl",
+                                                isFirstInGroup && !isLastInGroup && "rounded-2xl rounded-bl-md",
+                                                !isFirstInGroup && isLastInGroup && "rounded-2xl rounded-tl-md",
+                                                !isFirstInGroup && !isLastInGroup && "rounded-2xl rounded-l-md",
+                                            )
+                                    )}
+                                >
+                                    <div className="msg-content prose prose-sm dark:prose-invert max-w-none break-words">
+                                        <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
+                                    </div>
 
-                            {/* User avatar — only on first in group */}
+                                    {/* Meta row */}
+                                    {isLastInGroup && (
+                                        <div className="flex items-center justify-end gap-1.5 mt-2">
+
+                                            {msg.role === 'assistant' && msg.requestId && (
+                                                <div className="flex gap-0.5 mr-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                    <button
+                                                        onClick={() => handleFeedback(msg.requestId!, 'up')}
+                                                        className={clsx(
+                                                            "p-1.5 rounded-lg transition-all duration-200",
+                                                            feedbackState[msg.requestId!] === 'up'
+                                                                ? "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                                                                : "text-zinc-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                                        )}
+                                                        disabled={!!feedbackState[msg.requestId!]}
+                                                    >
+                                                        <ThumbsUp className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleFeedback(msg.requestId!, 'down')}
+                                                        className={clsx(
+                                                            "p-1.5 rounded-lg transition-all duration-200",
+                                                            feedbackState[msg.requestId!] === 'down'
+                                                                ? "text-red-500 bg-red-50 dark:bg-red-950/30"
+                                                                : "text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                                                        )}
+                                                        disabled={!!feedbackState[msg.requestId!]}
+                                                    >
+                                                        <ThumbsDown className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            <p suppressHydrationWarning className="text-[10px] opacity-40 text-right tabular-nums">
+                                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                            <button
+                                                onClick={() => handleCopy(msg.id, msg.content)}
+                                                className={clsx(
+                                                    "p-1.5 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 focus:opacity-100",
+                                                    msg.role === 'user'
+                                                        ? "hover:bg-white/10 text-white/60 hover:text-white"
+                                                        : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                                                )}
+                                                aria-label="Copy message"
+                                            >
+                                                {copiedId === msg.id ? (
+                                                    <Check className="w-3.5 h-3.5" />
+                                                ) : (
+                                                    <Copy className="w-3.5 h-3.5" />
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* User avatar */}
                             {msg.role === 'user' && (
-                                <div className={clsx(
-                                    "w-8 h-8 shrink-0",
-                                    !isFirstInGroup ? "invisible" : "mt-0.5"
-                                )}>
-                                    {isFirstInGroup ? (
+                                <div className={clsx("w-8 h-8 shrink-0", !isFirstInGroup ? "invisible" : "mt-0.5")}>
+                                    {isFirstInGroup && (
                                         <div className="w-8 h-8 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400">
                                             <User className="w-4 h-4" />
                                         </div>
-                                    ) : null}
+                                    )}
                                 </div>
                             )}
                         </div>
+
                     </React.Fragment>
                 );
             })}
 
             {/* ── Typing indicator ── */}
             {isLoading && (
-                <div className="flex gap-3 max-w-3xl mx-auto justify-start animate-message-enter mt-4">
+                <div className="flex gap-3 max-w-3xl mx-auto justify-start animate-message-enter mt-4 px-2">
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white shrink-0 shadow-lg shadow-violet-500/25">
                         <Bot className="w-4 h-4" />
                     </div>

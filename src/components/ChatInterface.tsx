@@ -33,7 +33,6 @@ export default function ChatInterface() {
         setMessages(prev => [...prev, userMsg]);
         setIsLoading(true);
 
-        // Simulate AI response using the service
         try {
             const { response: responseText, requestId } = await AIResponseService.generateResponse(content, persona, messages);
 
@@ -49,7 +48,13 @@ export default function ChatInterface() {
             setMessages(prev => [...prev, aiMsg]);
         } catch (error) {
             console.error('Error generating response:', error);
-            // Optionally add an error message to the chat
+            setMessages(prev => [...prev, {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: `Sorry, something went wrong. Please try again.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                timestamp: new Date().toISOString(),
+                isError: true,
+            }]);
         } finally {
             setIsLoading(false);
         }
