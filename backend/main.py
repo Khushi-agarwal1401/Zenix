@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from datetime import datetime
 import asyncio
 import threading
@@ -8,7 +9,7 @@ import uuid
 import json
 import logging
 from collections import defaultdict
-from typing import List, Dict
+from typing import List, Dict, AsyncGenerator
 
 app = FastAPI()
 
@@ -208,6 +209,97 @@ async def chat_endpoint(request: ChatRequest):
         "request_id": request_id,
         "session_id": session_id,
     }
+
+
+# ── Streaming SSE Endpoint ───────────────────────────────────────────────────
+
+async def _stream_response(
+    message: str, persona: str, session_id: str, request_id: str, history: List[Dict]
+) -> AsyncGenerator[str, None]:
+    """Generator that yields SSE events for streaming responses."""
+    context = {
+        "request_id": request_id,
+        "persona": persona,
+        "session_id": session_id,
+        "metadata": {},
+        "history": history,
+    }
+
+    full_response = ""
+
+    try:
+        # Try full pipeline first (non-streaming, but we send it as a stream)
+        if _pipeline_ready:
+            result = await task_router.route_and_process(message, context)
+            final_result = await verification_layer.process(result, context)
+            full_response = final_result.get("response", "Error generating response")
+
+            retrieved_results = context.get("retrieved_results", [])
+            log_interaction(
+                query=message,
+                retrieved_results=retrieved_results,
+                persona=persona,
+                request_id=request_id,
+            )
+        else:
+            # Pipeline not ready — use direct LLM
+            full_response = await asyncio.get_event_loop().run_in_executor(
+                None, _direct_llm_response, message, persona, history
+            )
+    except Exception as e:
+        print(f"Error in streaming endpoint: {e}")
+        full_response = await asyncio.get_event_loop().run_in_executor(
+            None, _direct_llm_response, message, persona, history
+        )
+
+    # Store conversation history
+    conversation_store[session_id].append({"role": "user", "content": message})
+    conversation_store[session_id].append({"role": "assistant", "content": full_response})
+    if len(conversation_store[session_id]) > MAX_HISTORY_MESSAGES * 2:
+        conversation_store[session_id] = conversation_store[session_id][-MAX_HISTORY_MESSAGES * 2:]
+
+    # Stream the response word-by-word for a typewriter effect
+    words = full_response.split(" ")
+    buffer = ""
+    for i, word in enumerate(words):
+        buffer += (" " if i > 0 else "") + word
+        # Send in small chunks (every 3-5 words) for smooth streaming
+        if (i + 1) % 4 == 0 or i == len(words) - 1:
+            event_data = json.dumps({
+                "type": "token",
+                "content": buffer,
+                "done": i == len(words) - 1,
+            })
+            yield f"data: {event_data}\n\n"
+            buffer = ""
+            await asyncio.sleep(0.03)  # Small delay for typewriter effect
+
+    # Send final done event
+    final_event = json.dumps({
+        "type": "done",
+        "request_id": request_id,
+        "session_id": session_id,
+        "full_response": full_response,
+    })
+    yield f"data: {final_event}\n\n"
+
+
+@app.post("/chat/stream")
+async def chat_stream_endpoint(request: ChatRequest):
+    """SSE streaming endpoint — returns Server-Sent Events."""
+    request_id = str(uuid.uuid4())
+    session_id = request.session_id or request_id
+    history = conversation_store[session_id]
+
+    return StreamingResponse(
+        _stream_response(request.message, request.persona, session_id, request_id, history),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 if __name__ == "__main__":

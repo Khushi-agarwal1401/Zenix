@@ -33,28 +33,58 @@ export default function ChatInterface() {
         setMessages(prev => [...prev, userMsg]);
         setIsLoading(true);
 
+        const aiMsgId = (Date.now() + 1).toString();
+        let accumulated = '';
+        let finalRequestId: string | undefined;
+
         try {
-            const { response: responseText, requestId } = await AIResponseService.generateResponse(content, persona, messages);
-
-            const aiMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: responseText,
-                timestamp: new Date().toISOString(),
-                persona,
-                requestId
-            };
-
-            setMessages(prev => [...prev, aiMsg]);
+            // Use streaming response
+            for await (const chunk of AIResponseService.generateStreamingResponse(content, persona, messages)) {
+                if (chunk.token) {
+                    accumulated += chunk.token;
+                    // Update the assistant message with accumulated text
+                    setMessages(prev => {
+                        const last = prev[prev.length - 1];
+                        if (last && last.id === aiMsgId && last.role === 'assistant') {
+                            return [...prev.slice(0, -1), { ...last, content: accumulated }];
+                        }
+                        return [...prev, {
+                            id: aiMsgId,
+                            role: 'assistant',
+                            content: accumulated,
+                            timestamp: new Date().toISOString(),
+                            persona,
+                        }];
+                    });
+                }
+                if (chunk.done) {
+                    finalRequestId = chunk.requestId;
+                    // Finalize the message with requestId
+                    setMessages(prev => {
+                        const last = prev[prev.length - 1];
+                        if (last && last.id === aiMsgId) {
+                            return [...prev.slice(0, -1), {
+                                ...last,
+                                content: chunk.fullResponse || accumulated,
+                                requestId: finalRequestId,
+                            }];
+                        }
+                        return prev;
+                    });
+                }
+            }
         } catch (error) {
             console.error('Error generating response:', error);
-            setMessages(prev => [...prev, {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: `Sorry, something went wrong. Please try again.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                timestamp: new Date().toISOString(),
-                isError: true,
-            }]);
+            // If no content was accumulated yet, show error
+            if (!accumulated) {
+                setMessages(prev => [...prev, {
+                    id: aiMsgId,
+                    role: 'assistant',
+                    content: `Sorry, something went wrong. Please try again.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                    timestamp: new Date().toISOString(),
+                    isError: true,
+                }]);
+            }
         } finally {
             setIsLoading(false);
         }

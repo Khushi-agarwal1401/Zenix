@@ -138,4 +138,123 @@ export class AIResponseService {
             return { response: fallbackResponse };
         }
     }
+
+    /**
+     * Streaming version of generateResponse.
+     * Calls the SSE /chat/stream endpoint and yields token chunks.
+     * Falls back to non-streaming if the streaming endpoint fails.
+     */
+    static async *generateStreamingResponse(
+        message: string,
+        persona: Persona,
+        history?: Message[],
+    ): AsyncGenerator<{ token: string; done: boolean; requestId?: string; fullResponse?: string }, void> {
+        // Check interceptors first (same as non-streaming)
+        const lowerMessage = message.toLowerCase().trim();
+
+        if (history && history.length > 0) {
+            const lastMsg = history[history.length - 1];
+            if (lastMsg.role === 'assistant' && lastMsg.content.includes("Chai ka time hai kya")) {
+                const yesPhrases = ["haan", "ha", "yes", "yup", "ok", "okay"];
+                const noPhrases = ["nahi", "na", "no", "nope", "not now"];
+                if (yesPhrases.some(p => lowerMessage.includes(p))) {
+                    yield { token: persona === 'desi'
+                        ? "Badiya! Ek mast kadak adrak wali chai ho jaye. Aur batao aur kya madad karun?"
+                        : "Excellent! Let's take a quick tea break. How else can I assist you?",
+                        done: true };
+                    return;
+                }
+                if (noPhrases.some(p => lowerMessage.includes(p))) {
+                    yield { token: persona === 'desi'
+                        ? "Arre koi baat nahi. Bina chai ke hi kaam chalate hain. Aur batao kya chal raha hai?"
+                        : "No problem. Let's continue. What's on your mind?",
+                        done: true };
+                    return;
+                }
+            }
+        }
+
+        const wellbeingPhrases = ["i am good", "i'm good", "doing well", "i am fine", "i'm fine", "all good"];
+        if (wellbeingPhrases.some(p => lowerMessage.includes(p))) {
+            yield { token: persona === 'desi'
+                ? "Badhiya yaar! Aur batao, kya chal raha hai aaj kal?"
+                : "That's great to hear! How can I assist you further today?",
+                done: true };
+            return;
+        }
+
+        const boredPhrases = ["feeling bored", "getting bored", "i am bored", "so boring"];
+        if (boredPhrases.some(p => lowerMessage.includes(p))) {
+            yield { token: persona === 'desi'
+                ? "Arre bore ho rahe ho? Chalo koi mast joke sunata hu ya phir koi interesting topic pe baat karte hain! Kya discuss karna hai?"
+                : "I understand you're feeling bored. We could play a word game, learn something new, or I can tell you some interesting facts.",
+                done: true };
+            return;
+        }
+
+        const jokePhrases = ["joke sunao", "tell me a joke", "make me laugh", "joke batao", "chutkula sunao"];
+        if (jokePhrases.some(p => lowerMessage.includes(p))) {
+            const desiJokes = [
+                "Teacher: Pappu, batao 'I am beautiful' kaun sa tense hai?\nPappu: Past tense, madam! 😂",
+                "Ek dost: Bhai, shaadi ke baad kitna badal gaya tu!\nDusra dost: Ye toh trailer hai, main picture baaki hai mere dost! 😜",
+                "Boss: Kahan the itni der se?\nEmployee: Sir, traffic jam mein phans gaya tha.\nBoss: Toh nikal kyu nahi gaye?\nEmployee: Kyunki main gadi mein tha, toothpaste mein nahi! 🚗😆",
+            ];
+            const englishJokes = [
+                "Why don't scientists trust atoms? Because they make up everything! 😄",
+                "Why did the scarecrow win an award? Because he was outstanding in his field! 🌾",
+                "What do you call a fake noodle? An impasta! 🍝",
+            ];
+            const jokes = persona === 'desi' ? desiJokes : englishJokes;
+            yield { token: jokes[Math.floor(Math.random() * jokes.length)], done: true };
+            return;
+        }
+
+        // Streaming SSE call
+        try {
+            const response = await fetch('http://127.0.0.1:8000/chat/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message, persona, session_id: getSessionId() }),
+            });
+
+            if (!response.ok) throw new Error(`Backend error: ${response.statusText}`);
+
+            const reader = response.body?.getReader();
+            if (!reader) throw new Error('No response body');
+
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.type === 'token') {
+                            yield { token: data.content, done: false };
+                        } else if (data.type === 'done') {
+                            yield {
+                                token: '',
+                                done: true,
+                                requestId: data.request_id,
+                                fullResponse: data.full_response,
+                            };
+                        }
+                    } catch {}
+                }
+            }
+        } catch (error) {
+            console.error("Streaming failed, falling back to non-streaming:", error);
+            // Fallback to non-streaming
+            const result = await this.generateResponse(message, persona, history);
+            yield { token: result.response, done: true, requestId: result.requestId };
+        }
+    }
 }
