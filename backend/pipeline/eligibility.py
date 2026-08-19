@@ -1,6 +1,6 @@
 """
 Government Scheme Eligibility Checker for Zenix AI.
-Checks if a user qualifies for PM-Kisan, Ayushman Bharat, etc.
+Checks if a user qualifies for 30+ Indian government schemes.
 """
 
 from typing import Dict, Any, List
@@ -25,6 +25,9 @@ class EligibilityChecker:
             - land_acres: float (for farmers)
             - is_bpl: bool (Below Poverty Line)
             - family_size: int
+            - is_pregnant: bool
+            - is_govt_employee: bool
+            - is_tax_payer: bool
         """
         results = {
             "eligible_schemes": [],
@@ -33,6 +36,7 @@ class EligibilityChecker:
         }
 
         schemes = [
+            # ── Core Welfare ───────────────────────────────────────────────
             self._check_pmkisan(profile),
             self._check_ayushman_bharat(profile),
             self._check_pmujjwala(profile),
@@ -43,6 +47,33 @@ class EligibilityChecker:
             self._check_scholarship(profile),
             self._check_mudra(profile),
             self._check_mgnrega(profile),
+            # ── Housing & Infrastructure ───────────────────────────────────
+            self._check_pmawas(profile),
+            self._check_swachh_bharat(profile),
+            # ── Women & Child ──────────────────────────────────────────────
+            self._check_sukanya(profile),
+            self._check_beti_bachao(profile),
+            self._check_cbse_udyamita(profile),
+            # ── Agriculture ────────────────────────────────────────────────
+            self._check_kisan_credit(profile),
+            self._check_soil_health(profile),
+            self._check_pm_fasal_bima(profile),
+            self._check_enam(profile),
+            # ── Education & Skill ──────────────────────────────────────────
+            self._check_pyramid_mission(profile),
+            self._check_iskm(profile),
+            # ── Employment & Entrepreneurship ──────────────────────────────
+            self._check_standup_india(profile),
+            self._check_pmrevamp(profile),
+            # ── Pension & Insurance ────────────────────────────────────────
+            self._check_nps(profile),
+            self._check_jandhan(profile),
+            self._check_senior_citizen_savings(profile),
+            # ── Digital & Startup ──────────────────────────────────────────
+            self._check_digital_india(profile),
+            self._check_startup_india(profile),
+            # ── State-specific ─────────────────────────────────────────────
+            self._check_state_schemes(profile),
         ]
 
         for scheme in schemes:
@@ -52,6 +83,8 @@ class EligibilityChecker:
                 results["not_eligible_schemes"].append(scheme)
 
         return results
+
+    # ── Original 10 Schemes ───────────────────────────────────────────────────
 
     def _check_pmkisan(self, p: Dict) -> Dict:
         """PM-KISAN: Rs 6,000/year for farmers."""
@@ -64,7 +97,6 @@ class EligibilityChecker:
         else:
             reasons.append("PM-KISAN requires cultivable agricultural land")
 
-        # Exclusion criteria
         if p.get("is_govt_employee"):
             eligible = False
             reasons.append("Government employees are excluded")
@@ -74,7 +106,7 @@ class EligibilityChecker:
 
         return {
             "name": "PM-KISAN",
-            "benefit": "Rs 6,000/year in 3 installments",
+            "benefit": "Rs 6,000/year in 3 installments of Rs 2,000",
             "eligible": eligible,
             "reasons": reasons,
             "apply_at": "pmkisan.gov.in",
@@ -266,7 +298,7 @@ class EligibilityChecker:
         if p.get("occupation") in ["farmer", "unemployed", "rural_worker"]:
             eligible = True
             reasons.append("Guaranteed 100 days of wage employment per year")
-            reasons.append(f"Minimum wage: Rs 349/day (varies by state)")
+            reasons.append("Minimum wage: Rs 349/day (varies by state)")
 
         if not eligible:
             reasons.append("MGNREGA is for rural households willing to do unskilled manual work")
@@ -277,6 +309,517 @@ class EligibilityChecker:
             "eligible": eligible,
             "reasons": reasons,
             "apply_at": "Gram Panchayat",
+        }
+
+    # ── Housing & Infrastructure ───────────────────────────────────────────────
+
+    def _check_pmawas(self, p: Dict) -> Dict:
+        """PM Awas Yojana (Urban): Housing for All — subsidy on home loan."""
+        eligible = False
+        reasons = []
+        income = p.get("income_annual", 0)
+
+        if income <= 300000:
+            eligible = True
+            reasons.append("EWS category (income up to Rs 3 lakh) — Rs 2.67 lakh subsidy")
+        elif income <= 600000:
+            eligible = True
+            reasons.append("LIG category (income Rs 3-6 lakh) — Rs 2.35 lakh subsidy")
+        elif income <= 1200000:
+            eligible = True
+            reasons.append("MIG-I category (income Rs 6-12 lakh) — Rs 2.35 lakh subsidy")
+        elif income <= 1800000:
+            eligible = True
+            reasons.append("MIG-II category (income Rs 12-18 lakh) — Rs 2.30 lakh subsidy")
+
+        if not eligible:
+            reasons.append("PM Awas is for families without a pucca house")
+
+        return {
+            "name": "PM Awas Yojana (Urban)",
+            "benefit": "Interest subsidy up to Rs 2.67 lakh on home loan",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "pmaymis.gov.in",
+        }
+
+    def _check_swachh_bharat(self, p: Dict) -> Dict:
+        """Swachh Bharat Mission: Toilet construction subsidy."""
+        eligible = False
+        reasons = []
+
+        if p.get("is_bpl") or p.get("income_annual", 0) < 120000:
+            eligible = True
+            reasons.append("BPL family eligible for toilet construction subsidy")
+            reasons.append("Rs 12,000 for individual household latrine")
+
+        if not eligible:
+            reasons.append("Swachh Bharat subsidy is primarily for BPL households")
+
+        return {
+            "name": "Swachh Bharat Mission",
+            "benefit": "Rs 12,000 subsidy for toilet construction",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "swachhbharat.mygov.in",
+        }
+
+    # ── Women & Child ──────────────────────────────────────────────────────────
+
+    def _check_sukanya(self, p: Dict) -> Dict:
+        """Sukanya Samriddhi Yojana: Savings scheme for girl child."""
+        eligible = False
+        reasons = []
+
+        if p.get("gender") == "female" and p.get("age", 0) <= 10:
+            eligible = True
+            reasons.append("Girl child below 10 years is eligible")
+            reasons.append("Higher interest rate (8.2%) + tax benefits under 80C")
+        elif p.get("has_daughter_below_10"):
+            eligible = True
+            reasons.append("Parent can open account for daughter below 10 years")
+
+        if not eligible:
+            reasons.append("Sukanya Samriddhi is for girl child below 10 years")
+
+        return {
+            "name": "Sukanya Samriddhi Yojana",
+            "benefit": "8.2% interest + tax benefits under 80C",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "Any post office or authorized bank",
+        }
+
+    def _check_beti_bachao(self, p: Dict) -> Dict:
+        """Beti Bachao Beti Padhao: Awareness + savings for girl child."""
+        eligible = False
+        reasons = []
+
+        if p.get("has_daughter_below_10") or (p.get("gender") == "female" and p.get("age", 0) <= 10):
+            eligible = True
+            reasons.append("Girl child benefits from awareness and savings programs")
+            reasons.append("Linked with Sukanya Samriddhi for savings")
+
+        if not eligible:
+            reasons.append("BBBP focuses on girl child welfare and education")
+
+        return {
+            "name": "Beti Bachao Beti Padhao",
+            "benefit": "Girl child welfare + linked savings benefits",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "wcd.nic.in",
+        }
+
+    def _check_cbse_udyamita(self, p: Dict) -> Dict:
+        """CBSE Udaan: Mentorship for girl students in engineering."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") == "student" and p.get("gender") == "female":
+            eligible = True
+            reasons.append("Girl students in Class XI/XII can apply")
+            reasons.append("Mentorship, online resources, and test prep support")
+
+        if not eligible:
+            reasons.append("CBSE Udaan is for girl students in Class XI-XII")
+
+        return {
+            "name": "CBSE Udaan",
+            "benefit": "Mentorship + resources for girl students in engineering",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "cbse.gov.in",
+        }
+
+    # ── Agriculture ────────────────────────────────────────────────────────────
+
+    def _check_kisan_credit(self, p: Dict) -> Dict:
+        """Kisan Credit Card: Short-term credit for farmers at 4% interest."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") == "farmer" and p.get("land_acres", 0) > 0:
+            eligible = True
+            reasons.append("Farmers with cultivable land are eligible")
+            reasons.append("Interest rate: 4% (after subsidy) vs 7-9% regular loans")
+            reasons.append("Covers crop cultivation + animal husbandry + fishery")
+
+        if not eligible:
+            reasons.append("KCC is for farmers with cultivable agricultural land")
+
+        return {
+            "name": "Kisan Credit Card (KCC)",
+            "benefit": "Crop loan at 4% interest (after govt subsidy)",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "Any bank, cooperative society, or NABARD",
+        }
+
+    def _check_soil_health(self, p: Dict) -> Dict:
+        """Soil Health Card: Free soil testing for farmers."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") == "farmer":
+            eligible = True
+            reasons.append("All farmers can get free soil testing")
+            reasons.append("Get Soil Health Card with nutrient recommendations")
+
+        if not eligible:
+            reasons.append("Soil Health Card is for farmers")
+
+        return {
+            "name": "Soil Health Card Scheme",
+            "benefit": "Free soil testing + nutrient recommendations",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "Soil Health Card portal or nearest Krishi Vigyan Kendra",
+        }
+
+    def _check_pm_fasal_bima(self, p: Dict) -> Dict:
+        """PM Fasal Bima Yojana: Crop insurance at low premiums."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") == "farmer" and p.get("land_acres", 0) > 0:
+            eligible = True
+            reasons.append("All farmers (sharecroppers + tenant farmers) eligible")
+            reasons.append("Premium: Kharif 2%, Rabi 1.5%, Commercial 5% of sum insured")
+            reasons.append("Covers crop loss due to natural calamites, pests, diseases")
+
+        if not eligible:
+            reasons.append("PMFBY is for farmers growing notified crops")
+
+        return {
+            "name": "PM Fasal Bima Yojana",
+            "benefit": "Crop insurance at 1.5-5% premium (govt pays rest)",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "pmfby.gov.in or bank/insurance company",
+        }
+
+    def _check_enam(self, p: Dict) -> Dict:
+        """e-NAM: Electronic National Agriculture Market — online trading."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") == "farmer":
+            eligible = True
+            reasons.append("All farmers can sell produce on e-NAM platform")
+            reasons.append("Better prices through competitive bidding across markets")
+
+        if not eligible:
+            reasons.append("e-NAM is for farmers and traders in agriculture")
+
+        return {
+            "name": "e-NAM (National Agriculture Market)",
+            "benefit": "Online trading of agriculture produce across 1,000+ mandis",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "enam.gov.in",
+        }
+
+    # ── Education & Skill ──────────────────────────────────────────────────────
+
+    def _check_pyramid_mission(self, p: Dict) -> Dict:
+        """National Skill Development Mission / Skill India."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") in ["student", "unemployed", "rural_worker"]:
+            eligible = True
+            reasons.append("Free skill training under Skill India")
+            reasons.append("Covers 40+ sectors — IT, healthcare, retail, etc.")
+            reasons.append("Certification recognized by NSDC")
+
+        if not eligible:
+            reasons.append("Skill India is available for youth seeking employment")
+
+        return {
+            "name": "Skill India (PMKVY)",
+            "benefit": "Free skill training + certification in 40+ sectors",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "skillindia.gov.in or nearest Skill India centre",
+        }
+
+    def _check_iskm(self, p: Dict) -> Dict:
+        """Impact linkage of Education with Skills and Knowledge for Market."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") in ["student", "unemployed"] and p.get("income_annual", 0) < 600000:
+            eligible = True
+            reasons.append("Scholarship for economically weaker students")
+            reasons.append("Covers tuition, books, and living expenses")
+
+        if not eligible:
+            reasons.append("Requires family income below Rs 6 lakh")
+
+        return {
+            "name": "National Scholarship Portal Schemes",
+            "benefit": "Scholarship for tuition + maintenance",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "scholarships.gov.in",
+        }
+
+    # ── Employment & Entrepreneurship ──────────────────────────────────────────
+
+    def _check_standup_india(self, p: Dict) -> Dict:
+        """Stand-Up India: Loans Rs 10 lakh - 1 crore for SC/ST/Women."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") in ["self-employed", "business", "entrepreneur"]:
+            if p.get("is_sc_st") or p.get("gender") == "female":
+                eligible = True
+                reasons.append("SC/ST or Woman entrepreneur eligible")
+                reasons.append("Loan: Rs 10 lakh to Rs 1 crore")
+                reasons.append("For greenfield enterprises in manufacturing, services, or trading")
+
+        if not eligible:
+            reasons.append("Stand-Up India is for SC/ST or Women entrepreneurs")
+
+        return {
+            "name": "Stand-Up India",
+            "benefit": "Loans Rs 10 lakh to Rs 1 crore for SC/ST/Women entrepreneurs",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "standupmitra.india.gov.in",
+        }
+
+    def _check_pmrevamp(self, p: Dict) -> Dict:
+        """PM Rozgar Yojana: Employment generation for educated youth."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") in ["unemployed", "student"] and 18 <= p.get("age", 0) <= 35:
+            eligible = True
+            reasons.append("Educated unemployed youth (18-35 years) eligible")
+            reasons.append("Interest subsidy on loans for self-employment")
+
+        if not eligible:
+            reasons.append("PM Rozgar is for educated unemployed youth 18-35 years")
+
+        return {
+            "name": "PM Rozgar Yojana",
+            "benefit": "Interest subsidy on self-employment loans",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "pmry.gov.in",
+        }
+
+    # ── Pension & Insurance ────────────────────────────────────────────────────
+
+    def _check_nps(self, p: Dict) -> Dict:
+        """National Pension System: Voluntary pension with tax benefits."""
+        age = p.get("age", 0)
+        eligible = 18 <= age <= 65
+        reasons = []
+
+        if eligible:
+            reasons.append(f"Age {age} is within 18-65 years range")
+            reasons.append("Additional Rs 50,000 tax deduction under 80CCD(1B)")
+            reasons.append("Market-linked returns with govt backing")
+
+        if not eligible:
+            reasons.append("NPS requires age between 18-65 years")
+
+        return {
+            "name": "National Pension System (NPS)",
+            "benefit": "Additional Rs 50,000 tax deduction + pension corpus",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "npscra.nsdl.co.in or any bank",
+        }
+
+    def _check_jandhan(self, p: Dict) -> Dict:
+        """Jan Dhan Yojana: Zero-balance bank account for all."""
+        eligible = False
+        reasons = []
+
+        if p.get("has_aadhaar") or not p.get("has_bank_account"):
+            eligible = True
+            reasons.append("All Indian citizens can open Jan Dhan account")
+            reasons.append("Zero balance required + RuPay debit card")
+            reasons.append("Rs 2 lakh accident insurance + Rs 30,000 life cover")
+
+        if not eligible:
+            reasons.append("Jan Dhan is available for all Indian citizens")
+
+        return {
+            "name": "Pradhan Mantri Jan Dhan Yojana",
+            "benefit": "Zero-balance account + Rs 2 lakh insurance + overdraft facility",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "Any bank branch with Aadhaar + identity proof",
+        }
+
+    def _check_senior_citizen_savings(self, p: Dict) -> Dict:
+        """Senior Citizens Savings Scheme: 8.2% interest for 60+."""
+        age = p.get("age", 0)
+        eligible = age >= 60
+        reasons = []
+
+        if eligible:
+            reasons.append(f"Age {age} — senior citizen eligible")
+            reasons.append("8.2% interest, 5-year tenure, Rs 30 lakh max deposit")
+            reasons.append("Tax benefit under Section 80C")
+
+        if not eligible:
+            reasons.append("SCSS requires age 60+ (or 55+ on retirement)")
+
+        return {
+            "name": "Senior Citizens Savings Scheme (SCSS)",
+            "benefit": "8.2% guaranteed interest on Rs 30 lakh",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "Post office or authorized bank",
+        }
+
+    # ── Digital & Startup ──────────────────────────────────────────────────────
+
+    def _check_digital_india(self, p: Dict) -> Dict:
+        """Digital India: Digital literacy and internet access programs."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") in ["student", "unemployed", "rural_worker"]:
+            eligible = True
+            reasons.append("Free digital literacy training available")
+            reasons.append("PMGDISHA: Certificate in digital skills")
+
+        if not eligible:
+            reasons.append("Digital India programs are available for all citizens")
+
+        return {
+            "name": "Digital India (PMGDISHA)",
+            "benefit": "Free digital literacy training + certificate",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "Common Service Centres",
+        }
+
+    def _check_startup_india(self, p: Dict) -> Dict:
+        """Startup India: Tax holidays, funding, and easier compliance."""
+        eligible = False
+        reasons = []
+
+        if p.get("occupation") in ["self-employed", "business", "entrepreneur"]:
+            eligible = True
+            reasons.append("Startups can register on Startup India portal")
+            reasons.append("3-year tax holiday + self-certification for compliance")
+            reasons.append("Fund of Funds (Rs 10,000 crore) access")
+
+        if not eligible:
+            reasons.append("Startup India is for recognized startups")
+
+        return {
+            "name": "Startup India",
+            "benefit": "3-year tax holiday + Fund of Funds + easier compliance",
+            "eligible": eligible,
+            "reasons": reasons,
+            "apply_at": "startupindia.gov.in",
+        }
+
+    # ── State-specific ─────────────────────────────────────────────────────────
+
+    def _check_state_schemes(self, p: Dict) -> Dict:
+        """State-specific schemes based on user's state."""
+        state = (p.get("state") or "").lower().strip()
+        eligible = False
+        reasons = []
+        state_benefits = []
+
+        state_map = {
+            "delhi": [
+                "Ladli Yojana — Rs 5,000-11,000 for girl child",
+                "Free water (20,000 litres/month) + electricity subsidy",
+                "Odd-even scheme benefits",
+            ],
+            "maharashtra": [
+                "Mahatma Jyotiba Phule Jan Arogya Yojana — Rs 2.5 lakh health cover",
+                "Majhi Ladki Bahin — Rs 1,500/month to eligible women",
+                "Shasan Apli Didi — Women empowerment programs",
+            ],
+            "uttar pradesh": [
+                "Kanya Sumangala Yojana — Rs 15,000-20,000 for girl child",
+                "Mukhyamantri Kisan Sampada Yojana — Agricultural support",
+                "UP Free Laptop Yojana — For meritorious students",
+            ],
+            "tamil nadu": [
+                "Amma Two-Wheeler Scheme — Subsidy on scooty for women",
+                "UDAN — Free education for poor students",
+                "Kalyanam Kamayagam — Marriage assistance",
+            ],
+            "rajasthan": [
+                "Chiranjeevi Yojana — Rs 25 lakh health cover",
+                "Indira Gandhi Free Smartphone — For women students",
+                "Lado Laxmi Yojana — Financial assistance to women",
+            ],
+            "madhya pradesh": [
+                "Ladli Laxmi Yojana — Rs 1.18 lakh for girl child education",
+                "Mukhyamantri Kisan Kalyan Yojana — Rs 4,000/year to farmers",
+                "Jankalyan — 100+ welfare schemes",
+            ],
+            "karnataka": [
+                "Gruha Lakshmi — Rs 2,000/month to women heads of family",
+                "Yuva Nidhi — Unemployment allowance for graduates",
+                "Shakti — Free bus travel for women",
+            ],
+            "west bengal": [
+                "Lakshmir Bhandar — Rs 1,000-1,200/month to women",
+                "Swasthya Sathi — Rs 5 lakh health cover",
+                "Kanyashree — Scholarships for girl students",
+            ],
+            "gujarat": [
+                "Mukhyamantri Mahila Utkarsh Yojana — 2% interest on loans",
+                "Smart City Mission — Urban development",
+                "Mukhyamantri Drashti Yojana — Eye care for students",
+            ],
+            "andhra pradesh": [
+                "Amma Vodi — Rs 15,000 to mothers for child's education",
+                "YSR Rythu Bharosa — Rs 13,500/year to farmers",
+                "Jagananna Vidya Deevena — Free education",
+            ],
+            "telangana": [
+                "Rythu Bandhu — Rs 10,000/year to farmers",
+                "KCR Kit — Rs 12,000 for pregnant women",
+                "Kalyana Lakshmi — Rs 1.01 lakh for SC/ST/BC girls' marriage",
+            ],
+            "bihar": [
+                "Mukhyamantri Kanya Utthan Yojana — Rs 50,000 for graduation",
+                "Jeevika — Self-help group support",
+                "Saat Nischay — 7 resolution development programs",
+            ],
+            "punjab": [
+                "Mukhyamantri Kamyab Kisan Yojana — Interest-free farm loans",
+                "Maa Bhagwati Bike Yojana — Free bike for meritorious girls",
+                "Smart Phone Yojana — Subsidized smartphones",
+            ],
+        }
+
+        for state_key, benefits in state_map.items():
+            if state_key in state:
+                eligible = True
+                state_benefits = benefits
+                reasons.append(f"You are in {state.title()} — {len(benefits)} state schemes available")
+                break
+
+        if not eligible and state:
+            reasons.append(f"No state-specific schemes mapped for {state.title()} yet")
+        elif not state:
+            reasons.append("Tell me your state for state-specific scheme info")
+
+        return {
+            "name": f"State Schemes ({state.title() if state else 'Unknown'})",
+            "benefit": "State-specific welfare schemes",
+            "eligible": eligible,
+            "reasons": reasons,
+            "state_benefits": state_benefits,
+            "apply_at": "State government portal",
         }
 
 

@@ -8,6 +8,7 @@ from .agent import AgentModule
 from .generation import GenerativeModule
 from .language_detector import detect_language, normalize_input
 from .calendar import get_festival_greeting
+from .memory import conversation_memory
 
 
 class TaskRouter:
@@ -50,6 +51,37 @@ class TaskRouter:
                 }
         except ImportError:
             pass
+
+        # 0.7 Memory — check for remember/forget intents and inject context
+        session_id = context.get("session_id", "default")
+        try:
+            # Auto-detect remember/forget intents
+            remember_result = conversation_memory.parse_remember_intent(normalized)
+            if remember_result:
+                key, value = remember_result
+                conversation_memory.remember(session_id, key, value)
+                if persona == "desi":
+                    return {"response": f"✅ Yaad rakhunga! {key.title()} = {value}", "source": "MEMORY"}
+                else:
+                    return {"response": f"✅ Got it! I'll remember: {key.title()} = {value}", "source": "MEMORY"}
+
+            forget_result = conversation_memory.parse_forget_intent(normalized)
+            if forget_result:
+                if forget_result == "__all__":
+                    conn = conversation_memory._get_conn()
+                    conn.execute("DELETE FROM memory_facts WHERE session_id = ?", (session_id,))
+                    conn.commit()
+                    return {"response": "✅ Cleared all memories.", "source": "MEMORY"}
+                else:
+                    conversation_memory.forget(session_id, forget_result)
+                    return {"response": f"✅ Forgot: {forget_result.title()}", "source": "MEMORY"}
+
+            # Inject memory context for LLM
+            memory_ctx = conversation_memory.get_context_string(session_id)
+            if memory_ctx:
+                context["memory_context"] = memory_ctx
+        except Exception:
+            pass  # Memory is non-critical, don't break the pipeline
 
         # 1. Entity Extraction
         entities = await self.entity_extractor.process(normalized, context)

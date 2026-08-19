@@ -179,6 +179,13 @@ class ToolRegistry:
             "usage": "profile: list | profile: create Ram | profile: switch Ram | profile: update {language: hi}",
             "handler": self._handle_profile,
         }
+        self.tools["memory"] = {
+            "name": "memory",
+            "description": ("Remember user facts across sessions. Store names, cities, preferences, corrections. "
+                "Auto-detects 'remember' and 'forget' intents from user messages."),
+            "usage": "memory: remember {key: value} | memory: recall | memory: recall name | memory: forget name | memory: context",
+            "handler": self._handle_memory,
+        }
         self.tools["export"] = {
             "name": "export",
             "description": "Export chat history as JSON, Markdown, or PDF.",
@@ -1554,6 +1561,80 @@ class ToolRegistry:
             return "Profile module not available."
         except Exception as e:
             return f"Profile error: {e}"
+
+    # ── Conversation Memory ──────────────────────────────────────────────────
+
+    def _handle_memory(self, args: str) -> str:
+        try:
+            from .memory import conversation_memory
+            session_id = "default"  # Could be passed from context
+            action = args.strip().lower()
+
+            if action.startswith("remember"):
+                # Parse the key:value from args
+                json_str = args[8:].strip()
+                try:
+                    data = json.loads(json_str)
+                    key = data.get("key", "")
+                    value = data.get("value", "")
+                except json.JSONDecodeError:
+                    # Try key: value format
+                    if ":" in json_str:
+                        key, value = json_str.split(":", 1)
+                        key, value = key.strip(), value.strip()
+                    else:
+                        return "Use: memory: remember {key: value} or memory: remember key: value"
+
+                if key and value:
+                    conversation_memory.remember(session_id, key, value)
+                    return f"✅ Remembered: {key.title()} = {value}"
+                return "Provide both key and value to remember."
+
+            elif action.startswith("recall"):
+                key = args[6:].strip() or None
+                if key:
+                    facts = conversation_memory.recall(session_id, key)
+                    if facts:
+                        f = facts[key]
+                        return f"{key.title()}: {f['value']} (stored {f['updated_at'][:10]})"
+                    return f"I don't remember anything about '{key}' yet."
+                else:
+                    facts = conversation_memory.get_all_facts(session_id)
+                    if not facts:
+                        return "I don't have any memories stored yet. Say 'remember my name is X' to get started."
+                    lines = ["**What I remember about you:**\n"]
+                    for f in facts:
+                        lines.append(f"- {f['key'].title()}: {f['value']}")
+                    return "\n".join(lines)
+
+            elif action.startswith("forget"):
+                key = args[6:].strip()
+                if key == "everything" or key == "all":
+                    from .memory import ConversationMemory
+                    conn = conversation_memory._get_conn()
+                    conn.execute("DELETE FROM memory_facts WHERE session_id = ?", (session_id,))
+                    conn.commit()
+                    return "✅ Cleared all memories."
+                elif key:
+                    conversation_memory.forget(session_id, key)
+                    return f"✅ Forgot: {key.title()}"
+                return "Specify what to forget: memory: forget <key>"
+
+            elif action.startswith("context"):
+                ctx = conversation_memory.get_context_string(session_id)
+                return ctx if ctx else "No memories to inject into context."
+
+            elif action.startswith("stats"):
+                stats = conversation_memory.stats()
+                return json.dumps(stats, indent=2)
+
+            else:
+                return "Memory commands: remember | recall | forget | context | stats"
+
+        except ImportError:
+            return "Memory module not available."
+        except Exception as e:
+            return f"Memory error: {e}"
 
     # ── Data Export ───────────────────────────────────────────────────────────
 

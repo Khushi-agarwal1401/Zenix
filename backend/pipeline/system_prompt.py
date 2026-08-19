@@ -48,6 +48,7 @@ You have access to the following tools. Use them proactively when the user's que
 - profile: Multi-user profile management for family sharing. Create, switch, list, and update profiles with per-user language, persona, and location. USE THIS when multiple people use the same device.
 - branch: Conversation branching. Go back to a previous message and fork a new conversation path. USE THIS when users want to explore different directions from an earlier point in the chat.
 - suggest: Get proactive follow-up suggestions based on conversation context. USE THIS to suggest relevant next actions or related topics.
+- memory: Remember user facts across sessions. Users can say 'remember my name is X' or 'remember I live in Mumbai'. Also supports 'forget' to clear memories. USE THIS to persist user information.
 - offline: Offline mode. Access cached responses, local knowledge (emergency numbers, UPI basics, govt schemes), and queue messages for sync when back online.
 IMPORTANT: When a user asks about news, current events, stock prices, or anything requiring real-time data, ALWAYS use the web_search or news tool. Do NOT make up information.
 
