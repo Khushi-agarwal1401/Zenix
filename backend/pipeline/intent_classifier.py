@@ -24,7 +24,7 @@ class IntentClassifier(PipelineModule):
             "hi", "hello", "hey", "namaste", "salaam", "vanakkam",
             "hii", "helo", "namaskar", "adaab",
         ]
-        if any(word == greeting or message.startswith(greeting) for greeting in greetings):
+        if any(message == greeting or message.startswith(greeting) for greeting in greetings):
             return {"intent": self.INTENT_GREETING, "confidence": 1.0}
 
         # 2. System Commands (Time, Status)
@@ -43,6 +43,11 @@ class IntentClassifier(PipelineModule):
         complex_keywords = [
             "compare", "difference", "plan", "steps", "versus", "vs",
             "analyze", "pros and cons", "trade-off", "which is better",
+            "translate", "translation", "convert", "in miles", "in km",
+            "to hindi", "to tamil", "to bengali", "to telugu", "to marathi",
+            "to english", "fahrenheit", "celsius", "kilogram", "pounds",
+            "usd to inr", "inr to usd", "dollars to rupees", "rupees to dollars",
+            "euros to", "pounds to", "yen to", "exchange rate", "currency conversion",
         ]
         if any(k in message for k in complex_keywords):
             return {"intent": self.INTENT_COMPLEX, "confidence": 0.85}

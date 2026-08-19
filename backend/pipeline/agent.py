@@ -25,6 +25,13 @@ TOOL_KEYWORDS = {
     "time:": "datetime",
     "date:": "datetime",
     "day:": "datetime",
+    "translate:": "translate",
+    "translation:": "translate",
+    "convert:": "unit",
+    "unit:": "unit",
+    "currency:": "currency",
+    "exchange:": "currency",
+    "rate:": "currency",
 }
 
 
@@ -67,7 +74,14 @@ class AgentModule(PipelineModule):
             f"- 'what is 2**10' → Step 1: calculator: 2**10\n"
             f"- 'today date' → Step 1: datetime: date\n"
             f"- 'read report.txt' → Step 1: file: read report.txt\n"
-            f"- 'compare AI vs ML' → Step 1: search: artificial intelligence | Step 2: search: machine learning comparison\n\n"
+            f"- 'compare AI vs ML' → Step 1: search: artificial intelligence | Step 2: search: machine learning comparison\n"
+            f"- 'translate namaste to English' → Step 1: translate: namaste to English\n"
+            f"- 'what is this in Hindi: how are you' → Step 1: translate: how are you to Hindi\n"
+            f"- '10 km in miles' → Step 1: unit: 10 km to miles\n"
+            f"- '72 fahrenheit to celsius' → Step 1: unit: 72 fahrenheit to celsius\n"
+            f"- '100 usd to inr' → Step 1: currency: 100 usd to inr\n"
+            f"- '5000 rupees to dollars' → Step 1: currency: 5000 inr to usd\n"
+            f"- '50 euros to pounds' → Step 1: currency: 50 eur to gbp\n\n"
             f"If the query is simple and only needs one tool, return a single step.\n"
             f"Plan:"
         )

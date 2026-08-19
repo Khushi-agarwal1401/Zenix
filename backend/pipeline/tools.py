@@ -7,11 +7,12 @@ import os
 import re
 import math
 import json
+import ssl
 import sqlite3
 import urllib.request
 import urllib.error
 import urllib.parse
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from datetime import datetime
 
 
@@ -67,6 +68,30 @@ class ToolRegistry:
             "description": "Get current date, time, timezone info, or day of the week.",
             "usage": "datetime: now | datetime: date | datetime: day",
             "handler": self._handle_datetime,
+        }
+        self.tools["translate"] = {
+            "name": "translate",
+            "description": (
+                "Translate text between languages. Supports all 22 Indian languages + English. "
+                "Use language names (e.g., Hindi, Bengali, Tamil, Telugu, Marathi) or ISO codes."
+            ),
+            "usage": "translate: <text> to <language> | translate: <text> from <lang1> to <lang2>",
+            "handler": self._handle_translate,
+        }
+        self.tools["unit"] = {
+            "name": "unit",
+            "description": "Convert between units (length, weight, temperature).",
+            "usage": "unit: 10 km to miles | unit: 72 fahrenheit to celsius | unit: 5 kg to pounds",
+            "handler": self._handle_unit,
+        }
+        self.tools["currency"] = {
+            "name": "currency",
+            "description": (
+                "Convert between currencies using live exchange rates. "
+                "Supports INR, USD, EUR, GBP, JPY, and 30+ currencies."
+            ),
+            "usage": "currency: 100 usd to inr | currency: 5000 inr to usd | currency: 50 eur to gbp",
+            "handler": self._handle_currency,
         }
 
     # ── Sample Database ───────────────────────────────────────────────────────
@@ -325,6 +350,374 @@ class ToolRegistry:
                 f"Current time: {now.strftime('%I:%M %p')}\n"
                 f"Date: {now.strftime('%A, %B %d, %Y')}"
             )
+
+    # ── Translation Tool ───────────────────────────────────────────────────────
+
+    # Language name → MyMemory ISO code mapping
+    LANGUAGE_CODES = {
+        # Indian Languages (22 Scheduled Languages)
+        "hindi": "hi", "bengali": "bn", "telugu": "te", "marathi": "mr",
+        "tamil": "ta", "gujarati": "gu", "urdu": "ur", "kannada": "kn",
+        "odia": "or", "odia (oriya)": "or", "malayalam": "ml", "punjabi": "pa",
+        "sanskrit": "sa", "assamese": "as", "maithili": "mai",
+        "dogri": "doi", "kashmiri": "ks", "konkani": "kok",
+        "sindhi": "sd", "manipuri": "mni", "bodo": "brx",
+        "santhali": "sat",
+        # Major world languages
+        "english": "en", "spanish": "es", "french": "fr",
+        "german": "de", "chinese": "zh-CN", "japanese": "ja",
+        "korean": "ko", "arabic": "ar", "portuguese": "pt",
+        "russian": "ru", "italian": "it", "thai": "th",
+        "turkish": "tr", "vietnamese": "vi", "indonesian": "id",
+        "malay": "ms", "nepali": "ne", "sinhala": "si",
+        "burmese": "my", "khmer": "km", "lao": "lo",
+        "tibetan": "bo", "filipino": "tl", "swahili": "sw",
+        "dutch": "nl", "polish": "pl", "czech": "cs",
+        "greek": "el", "hebrew": "he", "hungarian": "hu",
+        "romanian": "ro", "swedish": "sv", "danish": "da",
+        "finnish": "fi", "norwegian": "no",
+    }
+
+    def _resolve_language(self, name: str) -> Optional[str]:
+        """Resolve a language name or code to MyMemory language code."""
+        name = name.strip().lower()
+        # Direct code match (2-3 letter ISO codes)
+        if len(name) <= 3 and name.isalpha():
+            return name
+        # Named language match
+        return self.LANGUAGE_CODES.get(name)
+
+    def _handle_translate(self, args: str) -> str:
+        """
+        Translate text using MyMemory API (free, no API key).
+
+        Formats:
+          translate: <text> to <target_language>
+          translate: <text> from <source_lang> to <target_lang>
+        """
+        if not args.strip():
+            return "Error: Please provide text and target language. Example: translate: namaste to English"
+
+        # Parse "from X to Y" format
+        source_lang = None
+        target_lang = None
+        text = args.strip()
+
+        # Try "from ... to ..." format
+        from_to_match = re.search(
+            r'\bfrom\s+([a-zA-Z]+)\s+to\s+([a-zA-Z]+)', args, re.IGNORECASE
+        )
+        if from_to_match:
+            source_lang = self._resolve_language(from_to_match.group(1))
+            target_lang = self._resolve_language(from_to_match.group(2))
+            # Extract text: everything after "to <lang>" and optional colon
+            after_match = args[from_to_match.end():].strip()
+            text = re.sub(r'^:\s*', '', after_match).strip() if after_match else ''
+            # If no text after, check text before "from"
+            if not text:
+                text = args[:from_to_match.start()].strip()
+        else:
+            # Try "to <language>" at end
+            to_match = re.search(r'\bto\s+([a-zA-Z ]+?)$', args, re.IGNORECASE)
+            if to_match:
+                target_lang = self._resolve_language(to_match.group(1))
+                text = args[:to_match.start()].strip()
+
+        if not target_lang:
+            return (
+                "Error: Could not determine target language. "
+                "Use format: translate: <text> to <language>\n"
+                "Supported languages: Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, "
+                "Kannada, Malayalam, Punjabi, Odia, Urdu, English, and many more."
+            )
+
+        if not text:
+            return "Error: No text provided to translate."
+
+        # Build MyMemory API URL (MyMemory requires explicit source language)
+        lang_pair = f"{source_lang or 'en'}|{target_lang}"
+        encoded_text = urllib.parse.quote(text[:500])  # Limit to 500 chars
+        api_url = (
+            f"https://api.mymemory.translated.net/get"
+            f"?q={encoded_text}&langpair={lang_pair}"
+        )
+
+        try:
+            # Use permissive SSL context for compatibility across environments
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            req = urllib.request.Request(api_url, headers={"User-Agent": "Zenix/1.0"})
+            with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            if data.get("responseStatus") == 200:
+                translated = data["responseData"]["translatedText"]
+                # MyMemory sometimes returns the original text if it can't translate
+                is_same = (
+                    not translated
+                    or translated.strip().lower() == text.strip().lower()
+                    or len(translated.strip()) == 0
+                )
+                if not is_same:
+                    source_label = source_lang or "en"
+                    return (
+                        f"🌐 Translation ({source_label} → {target_lang}):\n"
+                        f"Original: {text}\n"
+                        f"Translated: {translated}"
+                    )
+                else:
+                    # Fallback: try auto-detect with 'en' as source
+                    return (
+                        f"Could not translate to {target_lang}. "
+                        f"The text may already be in that language, or it may need "
+                        f"the source language specified (use: from <source_lang> to {target_lang})."
+                    )
+            else:
+                return f"Translation API returned status: {data.get('responseStatus', 'unknown')}"
+
+        except urllib.error.URLError as e:
+            return f"Translation API error: {e}. Please try again later."
+        except Exception as e:
+            return f"Translation error: {e}"
+
+    # ── Unit Conversion Tool ──────────────────────────────────────────────────
+
+    # Conversion factors to base units (meter, kg, celsius)
+    LENGTH_TO_METER = {
+        "mm": 0.001, "cm": 0.01, "m": 1, "km": 1000,
+        "in": 0.0254, "ft": 0.3048, "yd": 0.9144, "mi": 1609.344,
+        "inch": 0.0254, "inches": 0.0254, "foot": 0.3048, "feet": 0.3048,
+        "yard": 0.9144, "yards": 0.9144, "mile": 1609.344, "miles": 1609.344,
+        "meter": 1, "meters": 1, "kilometer": 1000, "kilometers": 1000,
+        "centimeter": 0.01, "centimeters": 0.01, "millimeter": 0.001, "millimeters": 0.001,
+    }
+    WEIGHT_TO_KG = {
+        "mg": 0.000001, "g": 0.001, "kg": 1, "tonne": 1000, "ton": 1000,
+        "gram": 0.001, "grams": 0.001, "kilogram": 1, "kilograms": 1,
+        "lb": 0.453592, "lbs": 0.453592, "pound": 0.453592, "pounds": 0.453592,
+        "oz": 0.0283495, "ounce": 0.0283495, "ounces": 0.0283495,
+        "quintal": 100,
+    }
+    VOLUME_TO_LITER = {
+        "ml": 0.001, "l": 1, "liter": 1, "liters": 1, "litre": 1, "litres": 1,
+        "milliliter": 0.001, "milliliters": 0.001, "gallon": 3.78541, "gallons": 3.78541,
+        "cup": 0.236588, "cups": 0.236588,
+    }
+
+    def _handle_unit(self, args: str) -> str:
+        """Convert between units."""
+        if not args.strip():
+            return "Error: Please provide a conversion. Example: unit: 10 km to miles"
+
+        # Parse "<number> <from_unit> to <to_unit>"
+        match = re.match(
+            r'([\d.]+)\s*([a-zA-Z°]+)\s+(?:to|in|into)\s+([a-zA-Z°]+)',
+            args.strip(), re.IGNORECASE,
+        )
+        if not match:
+            return (
+                "Error: Could not parse conversion. Use format: "
+                "<number> <from_unit> to <to_unit>\n"
+                "Example: 10 km to miles, 72 fahrenheit to celsius, 5 kg to pounds"
+            )
+
+        value = float(match.group(1))
+        from_unit = match.group(2).lower()
+        to_unit = match.group(3).lower()
+
+        # --- Temperature (special case) ---
+        temp_result = self._convert_temperature(value, from_unit, to_unit)
+        if temp_result is not None:
+            return f"🌡️ {value}°{from_unit.capitalize()} = {temp_result:.2f}°{to_unit.capitalize()}"
+
+        # --- Length ---
+        if from_unit in self.LENGTH_TO_METER and to_unit in self.LENGTH_TO_METER:
+            meters = value * self.LENGTH_TO_METER[from_unit]
+            result = meters / self.LENGTH_TO_METER[to_unit]
+            return f"📏 {value} {from_unit} = {result:.4g} {to_unit}"
+
+        # --- Weight ---
+        if from_unit in self.WEIGHT_TO_KG and to_unit in self.WEIGHT_TO_KG:
+            kg = value * self.WEIGHT_TO_KG[from_unit]
+            result = kg / self.WEIGHT_TO_KG[to_unit]
+            return f"⚖️ {value} {from_unit} = {result:.4g} {to_unit}"
+
+        # --- Volume ---
+        if from_unit in self.VOLUME_TO_LITER and to_unit in self.VOLUME_TO_LITER:
+            liters = value * self.VOLUME_TO_LITER[from_unit]
+            result = liters / self.VOLUME_TO_LITER[to_unit]
+            return f"🧪 {value} {from_unit} = {result:.4g} {to_unit}"
+
+        return (
+            f"Error: Unknown unit conversion '{from_unit}' → '{to_unit}'.\n"
+            f"Supported: km/miles/m/ft/in, kg/lb/oz/g, ml/l/gallon, °C/°F/K"
+        )
+
+    @staticmethod
+    def _convert_temperature(value: float, from_unit: str, to_unit: str) -> Optional[float]:
+        """Convert between Celsius, Fahrenheit, and Kelvin."""
+        # Normalize to lowercase
+        from_u = from_unit.lower().replace("°", "")
+        to_u = to_unit.lower().replace("°", "")
+
+        # Map common names
+        temp_map = {
+            "c": "c", "celsius": "c", "centigrade": "c",
+            "f": "f", "fahrenheit": "f",
+            "k": "k", "kelvin": "k",
+        }
+        from_u = temp_map.get(from_u)
+        to_u = temp_map.get(to_u)
+
+        if not from_u or not to_u:
+            return None
+
+        # Convert to Celsius first
+        if from_u == "c":
+            celsius = value
+        elif from_u == "f":
+            celsius = (value - 32) * 5 / 9
+        elif from_u == "k":
+            celsius = value - 273.15
+        else:
+            return None
+
+        # Convert from Celsius to target
+        if to_u == "c":
+            return celsius
+        elif to_u == "f":
+            return celsius * 9 / 5 + 32
+        elif to_u == "k":
+            return celsius + 273.15
+        return None
+
+    # ── Currency Conversion Tool ──────────────────────────────────────────────
+
+    # Common currency codes and symbols
+    CURRENCY_CODES = {
+        "inr": "INR", "rs": "INR", "rupee": "INR", "rupees": "INR",
+        "usd": "USD", "dollar": "USD", "dollars": "USD", "us dollar": "USD",
+        "eur": "EUR", "euro": "EUR", "euros": "EUR",
+        "gbp": "GBP", "pound": "GBP", "pounds": "GBP", "british pound": "GBP",
+        "jpy": "JPY", "yen": "JPY", "japanese yen": "JPY",
+        "cny": "CNY", "yuan": "CNY", "rmb": "CNY",
+        "aud": "AUD", "australian dollar": "AUD",
+        "cad": "CAD", "canadian dollar": "CAD",
+        "sgd": "SGD", "singapore dollar": "SGD",
+        "aed": "AED", "dirham": "AED", "dirhams": "AED",
+        "sar": "SAR", "riyal": "SAR", "riyals": "SAR",
+        "chf": "CHF", "swiss franc": "CHF",
+        "krw": "KRW", "won": "KRW",
+        "thb": "THB", "baht": "THB",
+        "myr": "MYR", "ringgit": "MYR",
+        "idr": "IDR", "rupiah": "IDR",
+        "php": "PHP", "peso": "PHP", "pesos": "PHP",
+        "zar": "ZAR", "rand": "ZAR",
+        "brl": "BRL", "real": "BRL", "reais": "BRL",
+        "rub": "RUB", "ruble": "RUB", "rouble": "RUB",
+        "try": "TRY", "lira": "TRY",
+        "nzd": "NZD", "new zealand dollar": "NZD",
+        "sek": "SEK", "nok": "NOK", "dkk": "DKK",
+        "pln": "PLN", "zloty": "PLN",
+        "czk": "CZK", "koruna": "CZK",
+    }
+
+    CURRENCY_SYMBOLS = {
+        "INR": "₹", "USD": "$", "EUR": "€", "GBP": "£",
+        "JPY": "¥", "CNY": "¥", "KRW": "₩", "THB": "฿",
+    }
+
+    def _resolve_currency(self, name: str) -> Optional[str]:
+        """Resolve a currency name or code to ISO 4217 code."""
+        name = name.strip().lower()
+        # Direct 3-letter code match
+        if len(name) == 3 and name.isalpha():
+            return name.upper()
+        return self.CURRENCY_CODES.get(name)
+
+    def _handle_currency(self, args: str) -> str:
+        """
+        Convert between currencies using live exchange rates.
+        Uses Frankfurter API (free, no key needed).
+
+        Formats:
+          currency: <amount> <from> to <to>
+          currency: <amount> <from> in <to>
+        """
+        if not args.strip():
+            return (
+                "Error: Please provide amount and currencies. "
+                "Example: currency: 100 usd to inr"
+        )
+
+        # Parse: <amount> <from_currency> to <to_currency>
+        match = re.match(
+            r'([\d.,]+)\s+([a-zA-Z ₹$€£¥]+?)\s+(?:to|in|into)\s+([a-zA-Z ₹$€£¥]+?)$',
+            args.strip(), re.IGNORECASE,
+        )
+        if not match:
+            return (
+                "Error: Could not parse. Use format: "
+                "<amount> <from_currency> to <to_currency>\n"
+                "Example: 100 usd to inr, 5000 inr to usd, 50 eur to gbp"
+            )
+
+        # Parse amount (handle commas)
+        amount_str = match.group(1).replace(',', '')
+        try:
+            amount = float(amount_str)
+        except ValueError:
+            return f"Error: Invalid amount '{match.group(1)}'"
+
+        from_cur = self._resolve_currency(match.group(2))
+        to_cur = self._resolve_currency(match.group(3))
+
+        if not from_cur:
+            return (
+                f"Error: Unknown currency '{match.group(2)}'. "
+                f"Supported: INR, USD, EUR, GBP, JPY, and 30+ currencies."
+            )
+        if not to_cur:
+            return (
+                f"Error: Unknown currency '{match.group(3)}'. "
+                f"Supported: INR, USD, EUR, GBP, JPY, and 30+ currencies."
+            )
+
+        # Fetch live rates from Frankfurter API
+        api_url = (
+            f"https://api.frankfurter.app/latest"
+            f"?amount={amount}&from={from_cur}&to={to_cur}"
+        )
+
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            req = urllib.request.Request(api_url, headers={"User-Agent": "Zenix/1.0"})
+            with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            rates = data.get("rates", {})
+            if to_cur in rates:
+                converted = rates[to_cur]
+                rate_per_unit = converted / amount if amount else 0
+                symbol = self.CURRENCY_SYMBOLS.get(to_cur, "")
+                from_sym = self.CURRENCY_SYMBOLS.get(from_cur, "")
+
+                return (
+                    f"💱 Currency Conversion:\n"
+                    f"  {from_sym}{amount:,.2f} {from_cur} = {symbol}{converted:,.2f} {to_cur}\n"
+                    f"  Rate: 1 {from_cur} = {rate_per_unit:,.4f} {to_cur}\n"
+                    f"  Source: Frankfurter API (ECB data)"
+                )
+            else:
+                return f"Error: Could not convert {from_cur} → {to_cur}. Check currency codes."
+
+        except urllib.error.URLError as e:
+            return f"Currency API error: {e}. Please try again later."
+        except Exception as e:
+            return f"Currency conversion error: {e}"
 
     # ── Registry API ──────────────────────────────────────────────────────────
 
