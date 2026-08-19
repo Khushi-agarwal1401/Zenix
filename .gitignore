@@ -73,3 +73,7 @@ chroma_db/
 *.db
 
 backend/data/
+
+# Knowledge
+knowledge/
+*.knowledge
