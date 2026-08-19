@@ -64,6 +64,14 @@ def ingest_knowledge_base():
         "entertainment.md",
         "education_expanded.md",
         "shopping.md",
+        "banking_comparison.md",
+        "travel_india.md",
+        "healthcare_india.md",
+        "property_rental.md",
+        "job_preparation.md",
+        "parenting_family.md",
+        "legal_templates.md",
+        "festival_shopping.md",
     ]
     
     # Chunking configuration
@@ -180,6 +188,22 @@ def _get_domain(filename: str) -> str:
         return "education_expanded"
     elif "shopping" in filename.lower():
         return "shopping"
+    elif "banking" in filename.lower():
+        return "banking_comparison"
+    elif "travel" in filename.lower():
+        return "travel"
+    elif "healthcare" in filename.lower():
+        return "healthcare"
+    elif "property" in filename.lower() or "rental" in filename.lower():
+        return "property"
+    elif "job" in filename.lower() or "preparation" in filename.lower():
+        return "job_preparation"
+    elif "parenting" in filename.lower() or "family" in filename.lower():
+        return "parenting"
+    elif "legal_templates" in filename.lower():
+        return "legal_templates"
+    elif "festival_shopping" in filename.lower():
+        return "festival_shopping"
     return "general"
 
 

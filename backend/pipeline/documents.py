@@ -48,6 +48,36 @@ TEMPLATES = {
         "format": """MEMORANDUM\n\nTO: {to}\nFROM: {from_name}\nDATE: {date}\nRE: {subject}\n\n{body}""",
         "fields": ["to", "from_name", "date", "subject", "body"],
     },
+    "rental_agreement": {
+        "name": "Rental Agreement",
+        "format": """# RENTAL AGREEMENT\n\nThis Rental Agreement is made on {date} between:\n\n**LANDLORD:** {landlord_name}, S/o/D/o {landlord_father}, Aged {landlord_age} years, residing at {landlord_address}\n\n**TENANT:** {tenant_name}, S/o/D/o {tenant_father}, Aged {tenant_age} years, residing at {tenant_address}\n\n## Property Details\n- Address: {property_address}\n- Area: {area_sqft} sq. ft.\n- Type: {property_type}\n\n## Terms & Conditions\n1. Monthly Rent: Rs {rent_amount} payable by {rent_due_date} of each month\n2. Security Deposit: Rs {deposit_amount} (refundable at end of tenancy)\n3. Lock-in Period: {lock_in_months} months\n4. Notice Period: {notice_period} months from either party\n5. Maintenance: Minor repairs by tenant, major by landlord\n6. Electricity/Water: Paid by tenant directly\n7. Subletting: Not permitted without written consent\n8. Police Verification: To be completed within 7 days\n9. Agreement Duration: {agreement_duration} months (renewable)\n\n## Signatures\n\nLandlord: _________________ Date: _________\n\nTenant: _________________ Date: _________\n\nWitness 1: _________________\n\nWitness 2: _________________""",
+        "fields": ["date", "landlord_name", "landlord_father", "landlord_age", "landlord_address", "tenant_name", "tenant_father", "tenant_age", "tenant_address", "property_address", "area_sqft", "property_type", "rent_amount", "rent_due_date", "deposit_amount", "lock_in_months", "notice_period", "agreement_duration"],
+    },
+    "sale_deed": {
+        "name": "Sale Deed",
+        "format": """# SALE DEED\n\nThis Sale Deed is executed on {date} between:\n\n**VENDOR (Seller):** {seller_name}, S/o {seller_father}, Aged {seller_age} years, residing at {seller_address}\n\n**VENDEE (Buyer):** {buyer_name}, S/o {buyer_father}, Aged {buyer_age} years, residing at {buyer_address}\n\n## 1. Property Description\n- Property: {property_address}\n- Survey/Plot No: {survey_number}\n- Area: {area_sqft} sq. ft.\n- Boundaries: North: {boundary_north}, South: {boundary_south}, East: {boundary_east}, West: {boundary_west}\n\n## 2. Sale Consideration\n- Total Sale Price: Rs {sale_price} (Rupees {sale_price_words})\n- Payment Mode: {payment_mode}\n- Token Amount: Rs {token_amount} paid on {token_date}\n\n## 3. Seller's Covenants\n- Seller has clear, marketable title\n- Property is free from encumbrances\n- Seller has right to sell\n\n## 4. Buyer's Covenants\n- Buyer has inspected property\n- Buyer accepts property as-is\n- Buyer will pay stamp duty and registration\n\n## 5. Possession\n- Date of possession: {possession_date}\n- Property delivered vacant and peaceful\n\n## Signatures\n\nVendor: _________________ Date: _________\n\nVendee: _________________ Date: _________\n\nWitness 1: _________________\n\nWitness 2: _________________""",
+        "fields": ["date", "seller_name", "seller_father", "seller_age", "seller_address", "buyer_name", "buyer_father", "buyer_age", "buyer_address", "property_address", "survey_number", "area_sqft", "boundary_north", "boundary_south", "boundary_east", "boundary_west", "sale_price", "sale_price_words", "payment_mode", "token_amount", "token_date", "possession_date"],
+    },
+    "power_of_attorney": {
+        "name": "Power of Attorney",
+        "format": """# POWER OF ATTORNEY\n\nI, {principal_name}, S/o {principal_father}, Aged {principal_age} years, residing at {principal_address}, do hereby appoint:\n\n**ATTORNEY:** {attorney_name}, S/o {attorney_father}, Aged {attorney_age} years, residing at {attorney_address}\n\nAs my lawful Attorney to act on my behalf for:\n\n1. To manage, sell, transfer, mortgage my property at {property_address}\n2. To represent me before any government authority\n3. To sign documents on my behalf\n4. To collect rent, income, or dues\n5. To file tax returns and appear before IT authorities\n6. To operate bank accounts\n\n**This Power of Attorney is:** {poa_type} (Irrevocable/Revocable)\n**Valid from:** {valid_from} to {valid_to}\n\n## Signatures\n\nPrincipal (Grantor): _________________ Date: _________\n\nAttorney: _________________ Date: _________\n\nWitness 1: _________________\n\nWitness 2: _________________""",
+        "fields": ["principal_name", "principal_father", "principal_age", "principal_address", "attorney_name", "attorney_father", "attorney_age", "attorney_address", "property_address", "poa_type", "valid_from", "valid_to"],
+    },
+    "will": {
+        "name": "Last Will and Testament",
+        "format": """# LAST WILL AND TESTAMENT\n\nI, {testator_name}, S/o {testator_father}, Aged {testator_age} years, residing at {testator_address}, being of sound mind and disposing memory, do hereby make this Will:\n\n## 1. Revocation\nI revoke all prior wills.\n\n## 2. Appointment of Executor\nI appoint {executor_name} as Executor of this Will.\n\n## 3. Bequests\n{bequests}\n\n## 4. Residuary Estate\nAll remaining assets to be divided equally among {residuary_beneficiaries}.\n\n## 5. Guardian of Minor Children\nI appoint {guardian_name} as guardian of my minor children.\n\n## Signature\nSignature: _________________\nDate: {date}\nPlace: {place}\n\n## Witnesses\n1. {witness1_name}, {witness1_address} _________________\n2. {witness2_name}, {witness2_address} _________________""",
+        "fields": ["testator_name", "testator_father", "testator_age", "testator_address", "executor_name", "bequests", "residuary_beneficiaries", "guardian_name", "date", "place", "witness1_name", "witness1_address", "witness2_name", "witness2_address"],
+    },
+    "affidavit": {
+        "name": "Affidavit",
+        "format": """# AFFIDAVIT\n\nI, {deponent_name}, S/o {deponent_father}, Aged {deponent_age} years, residing at {deponent_address}, do hereby solemnly affirm and declare:\n\n1. That I am {relationship} of {related_person}\n\n2. That {fact1}\n\n3. {additional_facts}\n\n4. That the above statements are true and correct to the best of my knowledge and belief.\n\n**Solemnly Affirmed at {place} on this {date}**\n\nSignature: _________________\nDeponent\n\n**Before Me:**\n{Name of Notary/Oath Commissioner}\n[Stamp/Seal]\nDate: {date}""",
+        "fields": ["deponent_name", "deponent_father", "deponent_age", "deponent_address", "relationship", "related_person", "fact1", "additional_facts", "place", "date", "Name of Notary/Oath Commissioner"],
+    },
+    "noc": {
+        "name": "No Objection Certificate",
+        "format": """# NO OBJECTION CERTIFICATE\n\nI, {issuer_name}, S/o {issuer_father}, Aged {issuer_age} years, residing at {issuer_address}, do hereby declare that I have no objection to:\n\n{purpose}\n\nThis NOC is valid from {valid_from} to {valid_to}.\n\n## Signature\nSignature: _________________\nDate: {date}\nPlace: {place}\n\n## Witnesses\n1. {witness1_name}, {witness1_address}\n2. {witness2_name}, {witness2_address}""",
+        "fields": ["issuer_name", "issuer_father", "issuer_age", "issuer_address", "purpose", "valid_from", "valid_to", "date", "place", "witness1_name", "witness1_address", "witness2_name", "witness2_address"],
+    },
 }
 
 # Minimal HTML template for PDF conversion
