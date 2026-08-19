@@ -60,6 +60,10 @@ def ingest_knowledge_base():
         "states_india.md",
         "legal_expanded.md",
         "financial_literacy.md",
+        "recipes_food.md",
+        "entertainment.md",
+        "education_expanded.md",
+        "shopping.md",
     ]
     
     # Chunking configuration
@@ -168,6 +172,14 @@ def _get_domain(filename: str) -> str:
         return "financial_literacy"
     elif "legal_expanded" in filename.lower():
         return "legal_expanded"
+    elif "recipe" in filename.lower() or "food" in filename.lower():
+        return "food_recipes"
+    elif "entertainment" in filename.lower():
+        return "entertainment"
+    elif "education_expanded" in filename.lower():
+        return "education_expanded"
+    elif "shopping" in filename.lower():
+        return "shopping"
     return "general"
 
 

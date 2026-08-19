@@ -37,6 +37,20 @@ class TaskRouter:
         print(f"Language detected: {lang_info['language']} "
               f"(script={lang_info['script']}, code_mixed={lang_info['is_code_mixed']})")
 
+        # 0.5 Crisis Detection — safety-critical, check before anything else
+        try:
+            from .crisis import detect_crisis
+            crisis = detect_crisis(normalized)
+            if crisis:
+                return {
+                    "response": crisis["response"],
+                    "source": "CRISIS",
+                    "crisis_type": crisis["type"],
+                    "severity": crisis["severity"],
+                }
+        except ImportError:
+            pass
+
         # 1. Entity Extraction
         entities = await self.entity_extractor.process(normalized, context)
         context["entities"] = entities.get("entities")

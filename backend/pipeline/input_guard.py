@@ -105,13 +105,24 @@ def guard_input(text: str) -> Tuple[str, bool, str]:
     """
     Full input guard pipeline:
     1. Sanitize
-    2. Detect injection
-    3. Detect harmful content
+    2. Detect crisis (return crisis response, don't block)
+    3. Detect injection
+    4. Detect harmful content
 
     Returns:
         (sanitized_text, is_blocked, block_reason)
     """
     sanitized = sanitize_input(text)
+
+    # Check for crisis — these should NOT be blocked, they need empathetic response
+    try:
+        from .crisis import detect_crisis
+        crisis = detect_crisis(sanitized)
+        if crisis:
+            # Crisis detected — don't block, but flag for special handling
+            return sanitized, False, f"CRISIS:{crisis['type']}:{crisis['severity']}"
+    except ImportError:
+        pass
 
     # Check for injection
     is_injection, reason = detect_injection(sanitized)
