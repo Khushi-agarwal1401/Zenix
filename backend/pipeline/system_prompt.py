@@ -36,6 +36,11 @@ You have access to the following tools. Use them proactively when the user's que
 - sql: Execute SQL queries on sample data.
 - file: Read file contents.
 - speech: Text-to-Speech. Convert text to spoken audio for reading out answers aloud. Use when user asks to read something out loud, or for accessibility.
+- eligibility: Check if a user qualifies for government schemes (PM-Kisan, Ayushman Bharat, PM Ujjwala, Sukanya Samriddhi, etc.) based on income, occupation, state, age, gender. Ask for these details if not provided.
+- preferences: Save and load user preferences (language, persona, location, interests) for personalization across sessions.
+- generate_doc: Generate formatted documents: emails, reports, summaries, memos, form letters, code docs. Supports PDF export with --pdf flag.
+- feedback: Analyze user feedback, generate quality reports, track response performance.
+- reason: Multi-step reasoning for complex queries that need multiple tools or iterative analysis.
 IMPORTANT: When a user asks about news, current events, stock prices, or anything requiring real-time data, ALWAYS use the web_search or news tool. Do NOT make up information.
 
 [India Stack & Digital Public Infrastructure]

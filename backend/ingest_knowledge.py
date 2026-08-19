@@ -52,6 +52,11 @@ def ingest_knowledge_base():
         "legal_knowledge.md",
         "health_wellness.md",
         "india_stack_dpi.md",
+        "education.md",
+        "agriculture.md",
+        "transport.md",
+        "employment.md",
+        "regional.md",
     ]
     
     # Chunking configuration
@@ -136,7 +141,7 @@ def ingest_knowledge_base():
 
 def _get_domain(filename: str) -> str:
     """Extract domain from filename."""
-    if "government" in filename.lower():
+    if "government" in filename.lower() or "india_stack" in filename.lower():
         return "government_schemes"
     elif "banking" in filename.lower() or "finance" in filename.lower():
         return "banking_finance"
@@ -144,6 +149,16 @@ def _get_domain(filename: str) -> str:
         return "legal"
     elif "health" in filename.lower():
         return "health"
+    elif "education" in filename.lower():
+        return "education"
+    elif "agriculture" in filename.lower():
+        return "agriculture"
+    elif "transport" in filename.lower():
+        return "transport"
+    elif "employment" in filename.lower():
+        return "employment"
+    elif "regional" in filename.lower():
+        return "regional"
     return "general"
 
 

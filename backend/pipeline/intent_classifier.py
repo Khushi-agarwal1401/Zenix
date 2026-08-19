@@ -56,6 +56,12 @@ class IntentClassifier(PipelineModule):
             "near me", "nearby", "directions to",
             "festival", "holiday", "chutti", "tyohaar", "calendar",
             "today is what", "aaj kya hai", "kya chutti hai",
+            "eligible", "eligibility", "qualify", "scheme check", "yojana",
+            "pm kisan", "ayushman", "ujjwala", "sukanya",
+            "feedback", "review", "thumbs", "rating",
+            "preference", "settings", "profile", "save language",
+            "generate doc", "create report", "make email", "pdf", "memo",
+            "analyze", "break down", "step by step", "reason", "think",
         ]
         if any(k in message for k in complex_keywords):
             return {"intent": self.INTENT_COMPLEX, "confidence": 0.85}

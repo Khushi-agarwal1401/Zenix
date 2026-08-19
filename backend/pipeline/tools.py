@@ -133,6 +133,39 @@ class ToolRegistry:
             "usage": "speech: <text> | speech: <text> in Hindi | speech: <text> language=bn",
             "handler": self._handle_speech,
         }
+        self.tools["eligibility"] = {
+            "name": "eligibility",
+            "description": ("Check eligibility for Indian government schemes like PM-Kisan, Ayushman Bharat, "
+                "PM Ujjwala, Sukanya Samriddhi, etc. based on user profile."),
+            "usage": "eligibility: {income: 200000, occupation: farmer, state: UP, age: 45, gender: male}",
+            "handler": self._handle_eligibility,
+        }
+        self.tools["feedback"] = {
+            "name": "feedback",
+            "description": "Analyze user feedback (thumbs up/down), generate feedback reports, and track response quality.",
+            "usage": "feedback: report | feedback: stats | feedback: thumbs_down list",
+            "handler": self._handle_feedback,
+        }
+        self.tools["preferences"] = {
+            "name": "preferences",
+            "description": "Manage user preferences: save/load language, persona, location, and interests.",
+            "usage": "preferences: save {language: hi, persona: desi, location: Delhi} | preferences: load | preferences: list",
+            "handler": self._handle_preferences,
+        }
+        self.tools["generate_doc"] = {
+            "name": "generate_doc",
+            "description": ("Generate documents: emails, reports, summaries, memos, form letters, code docs. "
+                "Supports Markdown output and PDF export."),
+            "usage": "generate_doc: email {subject: Meeting, recipient: Ravi, body: ..., sender: ...} | generate_doc: templates",
+            "handler": self._handle_generate_doc,
+        }
+        self.tools["reason"] = {
+            "name": "reason",
+            "description": ("Multi-step reasoning for complex queries. Breaks down complex questions into sub-goals, "
+                "executes each, and synthesizes a comprehensive answer."),
+            "usage": "reason: <complex query that needs multiple steps>",
+            "handler": self._handle_reason,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -1111,6 +1144,243 @@ class ToolRegistry:
             return "Speech module not installed. Install: pip install gTTS pyttsx3"
         except Exception as e:
             return f"Speech synthesis error: {e}"
+
+    # ── Eligibility Checker ──────────────────────────────────────────────────
+
+    def _handle_eligibility(self, args: str) -> str:
+        try:
+            from .eligibility import EligibilityChecker
+            # Try parsing as JSON
+            try:
+                profile = json.loads(args)
+            except json.JSONDecodeError:
+                # Try extracting key: value pairs            profile = {}
+            for part in args.replace(", ", ",").split(","):
+                if ":" in part:
+                    k, v = part.split(":", 1)
+                    profile[k.strip()] = v.strip()
+
+            # Map shorthand fields to expected names
+            if "income" in profile and "income_annual" not in profile:
+                try:
+                    profile["income_annual"] = float(profile.pop("income"))
+                except (ValueError, TypeError):
+                    pass
+            if "occupation" in profile and profile["occupation"].lower() == "farmer" and "land_acres" not in profile:
+                profile["land_acres"] = 1.0  # default assumption
+            if "age" in profile:
+                try:
+                    profile["age"] = int(profile["age"])
+                except (ValueError, TypeError):
+                    pass
+
+            checker = EligibilityChecker()
+            results = checker.check_all(profile)
+
+            eligible = results.get("eligible_schemes", [])
+            not_eligible = results.get("not_eligible_schemes", [])
+
+            if not eligible and not not_eligible:
+                return "No matching schemes found for the given profile."
+
+            lines = [f"**Eligibility Results:**\n"]
+            if eligible:
+                lines.append(f"\u2705 **ELIGIBLE ({len(eligible)}):**\n")
+                for r in eligible:
+                    name = r.get("name", "Unknown")
+                    lines.append(f"  ✅ **{name}**")
+                    reasons = r.get("reasons", [])
+                    for reason in reasons:
+                        lines.append(f"    - {reason}")
+                    if r.get("benefit"):
+                        lines.append(f"    💰 Benefit: {r['benefit']}")
+                    if r.get("apply_at"):
+                        lines.append(f"    🔗 Apply: {r['apply_at']}")
+                    lines.append("")
+
+            if not_eligible:
+                lines.append(f"\u274c **NOT ELIGIBLE ({len(not_eligible)}):**\n")
+                for r in not_eligible:
+                    name = r.get("name", "Unknown")
+                    reasons = r.get("reasons", [])
+                    not_reason = [x for x in reasons if "requires" in x.lower() or "excluded" in x.lower()]
+                    reason_text = not_reason[0] if not_reason else reasons[0] if reasons else "Does not meet criteria"
+                    lines.append(f"  ❌ **{name}** — {reason_text}")
+                    lines.append("")
+
+            return "\n".join(lines)
+        except ImportError:
+            return "Eligibility module not available."
+        except Exception as e:
+            return f"Eligibility check error: {e}"
+
+    # ── Feedback Analysis ─────────────────────────────────────────────────────
+
+    def _handle_feedback(self, args: str) -> str:
+        try:
+            from .feedback import FeedbackAnalyzer
+            analyzer = FeedbackAnalyzer()
+            action = args.strip().lower()
+
+            if action.startswith("report"):
+                return analyzer.generate_report()
+            elif action.startswith("stats"):
+                return analyzer.get_stats()
+            elif action.startswith("thumbs_down") or action.startswith("negative"):
+                return analyzer.list_negative_feedback()
+            elif action.startswith("suggestions"):
+                return analyzer.suggest_improvements()
+            else:
+                return analyzer.get_stats()
+        except ImportError:
+            return "Feedback module not available."
+        except Exception as e:
+            return f"Feedback analysis error: {e}"
+
+    # ── User Preferences ──────────────────────────────────────────────────────
+
+    def _handle_preferences(self, args: str) -> str:
+        try:
+            from .preferences import user_preferences
+            action = args.strip().lower()
+            session_id = "default"  # default session
+
+            if action.startswith("save"):
+                json_str = args[4:].strip()
+                try:
+                    prefs = json.loads(json_str)
+                except json.JSONDecodeError:
+                    prefs = {}
+                    for part in json_str.replace(", ", ",").split(","):
+                        if ":" in part:
+                            k, v = part.split(":", 1)
+                            prefs[k.strip()] = v.strip()
+
+                update_kwargs = {}
+                if "language" in prefs:
+                    update_kwargs["preferred_language"] = prefs["language"]
+                if "persona" in prefs:
+                    update_kwargs["preferred_persona"] = prefs["persona"]
+                if "location" in prefs:
+                    update_kwargs["location_city"] = prefs["location"]
+                if "interests" in prefs:
+                    topics = [t.strip() for t in prefs["interests"].split(",")]
+                    update_kwargs["topics_of_interest"] = topics
+                if update_kwargs:
+                    user_preferences.update(session_id, **update_kwargs)
+                return f"\u2705 Preferences saved: {json.dumps(prefs, ensure_ascii=False)}"
+
+            elif action.startswith("load"):
+                prefs = user_preferences.get(session_id)
+                if prefs:
+                    lines = ["**Your Preferences:**\n"]
+                    for k, v in prefs.items():
+                        lines.append(f"- **{k}**: {v}")
+                    return "\n".join(lines)
+                return "No preferences saved yet. Use: preferences: save {language: hi, ...}"
+
+            elif action.startswith("list"):
+                return """**Available preference keys:**
+- language: Preferred language code (hi, en, bn, ta, te, mr, etc.)
+- persona: Default persona (desi, sarkari)
+- location: City or state for local info
+- interests: Topics of interest (comma-separated)"""
+
+            elif action.startswith("stats"):
+                return json.dumps(user_preferences.stats(), indent=2)
+
+            else:
+                prefs = user_preferences.get(session_id)
+                if prefs and prefs.get("preferred_language") != "hi":
+                    return f"Current: {json.dumps({k: v for k, v in prefs.items() if v}, ensure_ascii=False)}"
+                return "No preferences set. Use: preferences: save {language: hi}"
+
+        except ImportError:
+            return "Preferences module not available."
+        except Exception as e:
+            return f"Preferences error: {e}"
+
+    # ── Document Generation ───────────────────────────────────────────────────
+
+    def _handle_generate_doc(self, args: str) -> str:
+        try:
+            from .documents import render_template, list_templates, markdown_to_html, generate_pdf
+
+            # Check for template list request
+            if args.strip().lower() in ("templates", "list", "help"):
+                return list_templates()
+
+            # Try to parse as: <template_name> {json}
+            parts = args.split(" ", 1)
+            template_name = parts[0].strip().lower()
+            vars_str = parts[1].strip() if len(parts) > 1 else "{}"
+
+            # Handle pdf export flag
+            export_pdf = False
+            if "--pdf" in vars_str:
+                export_pdf = True
+                vars_str = vars_str.replace("--pdf", "").strip()
+
+            try:
+                variables = json.loads(vars_str)
+            except json.JSONDecodeError:
+                variables = {"body": vars_str}
+
+            # Add date if not provided
+            if "date" not in variables:
+                from datetime import datetime
+                variables["date"] = datetime.now().strftime("%d %B %Y")
+
+            content = render_template(template_name, variables)
+
+            if export_pdf:
+                html = markdown_to_html(content, title=variables.get("title", variables.get("subject", "Document")))
+                pdf_path = f"/tmp/zenix_doc_{template_name}_{int(datetime.now().timestamp())}.pdf"
+                result = generate_pdf(html, pdf_path)
+                if result:
+                    return f"📄 PDF generated: {result}\n\n{content}"
+                return f"⚠️ PDF libraries not available (install weasyprint). Here's the Markdown:\n\n{content}"
+
+            return content
+
+        except ImportError:
+            return "Document module not available."
+        except Exception as e:
+            return f"Document generation error: {e}"
+
+    # ── Multi-Step Reasoning ──────────────────────────────────────────────────
+
+    def _handle_reason(self, args: str) -> str:
+        if not args.strip():
+            return "Provide a complex query for multi-step reasoning."
+        try:
+            import asyncio
+            from .reasoning import MultiStepReasoner
+
+            # Use the LLM client
+            from .llm_client import LLMClient
+            llm = LLMClient()
+
+            reasoner = MultiStepReasoner(llm, agent=None)  # agent=None for standalone use
+
+            # Run async in sync context
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        result = pool.submit(asyncio.run, reasoner.execute(args)).result()
+                else:
+                    result = loop.run_until_complete(reasoner.execute(args))
+            except RuntimeError:
+                result = asyncio.run(reasoner.execute(args))
+
+            return result.get("final_answer", "Reasoning could not be completed.")
+
+        except ImportError:
+            return "Reasoning module not available."
+        except Exception as e:
+            return f"Reasoning error: {e}"
 
     # ── Registry API ──────────────────────────────────────────────────────────
 
