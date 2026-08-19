@@ -5,6 +5,7 @@ import { Persona, Message } from '@/lib/types';
 import { PersonaToggle } from './PersonaToggle';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { AccessibilityPanel } from './AccessibilityPanel';
 
 import { AIResponseService } from '@/lib/ai_service';
 
@@ -94,8 +95,13 @@ export default function ChatInterface() {
 
     return (
         <div className="flex flex-col h-screen bg-zinc-50 dark:bg-zinc-950 text-foreground font-sans">
+            {/* Skip to main content (accessibility) */}
+            <a href="#chat-input" className="skip-link">
+                Skip to chat input
+            </a>
+
             {/* Header */}
-            <header className="flex items-center justify-between px-6 py-3.5 bg-white/80 dark:bg-zinc-950/80 border-b border-zinc-200/60 dark:border-zinc-800/60 backdrop-blur-2xl sticky top-0 z-20">
+            <header role="banner" className="flex items-center justify-between px-6 py-3.5 bg-white/80 dark:bg-zinc-950/80 border-b border-zinc-200/60 dark:border-zinc-800/60 backdrop-blur-2xl sticky top-0 z-20">
                 <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
                         <span className="text-white font-bold text-base">Z</span>
@@ -111,10 +117,15 @@ export default function ChatInterface() {
             </header>
 
             {/* Chat Area */}
-            <MessageList messages={messages} isLoading={isLoading} />
+            <main role="main" aria-label="Chat messages">
+                <MessageList messages={messages} isLoading={isLoading} />
+            </main>
 
             {/* Input Area */}
             <MessageInput onSend={handleSend} isLoading={isLoading} />
+
+            {/* Accessibility Panel */}
+            <AccessibilityPanel />
         </div>
     );
 }

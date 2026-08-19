@@ -476,6 +476,226 @@ async def chat_stream_endpoint(request: ChatRequest):
     )
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# IMAGE / MULTI-MODAL
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.post("/scan")
+async def scan_image(file: UploadFile = File(...), task: str = Form("auto")):
+    """Scan/OCR a document image."""
+    try:
+        from pipeline.multimodal import multimodal
+        content = await file.read()
+        result = multimodal.process_image_bytes(content, filename=file.filename, task=task)
+        return result
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/scan/base64")
+async def scan_base64(request: Request):
+    """Scan a base64-encoded image."""
+    body = await request.json()
+    b64 = body.get("image", "")
+    task = body.get("task", "auto")
+    from pipeline.multimodal import multimodal
+    return multimodal.process_base64(b64, task=task)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROACTIVE SUGGESTIONS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/suggestions/{session_id}")
+async def get_suggestions(session_id: str):
+    """Get proactive follow-up suggestions for a session."""
+    from pipeline.suggestions import suggestion_engine
+    history = session_store.get_history(session_id)
+    if not history:
+        return {"suggestions": []}
+    last_user = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
+    last_ai = next((m["content"] for m in reversed(history) if m["role"] == "assistant"), "")
+    suggestions = suggestion_engine.analyze_message(last_user, last_ai)
+    return {"suggestions": suggestions}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CONVERSATION BRANCHING
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/branches/{session_id}")
+async def list_branches(session_id: str):
+    from pipeline.branching import branching_store
+    return {"branches": branching_store.get_branches(session_id)}
+
+
+@app.post("/branches/{session_id}/fork")
+async def fork_branch(session_id: str, request: Request):
+    body = await request.json()
+    from_message = body.get("from_message_id", "")
+    new_branch = body.get("branch_id", f"branch_{int(datetime.now().timestamp())}")
+    from pipeline.branching import branching_store
+    success = branching_store.fork_from(session_id, from_message, new_branch)
+    return {"success": success, "branch_id": new_branch}
+
+
+@app.get("/branches/{session_id}/{branch_id}")
+async def get_branch(session_id: str, branch_id: str):
+    from pipeline.branching import branching_store
+    messages = branching_store.get_thread(session_id, branch_id)
+    return {"branch_id": branch_id, "messages": messages}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MULTI-USER PROFILES
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/profiles")
+async def list_profiles():
+    from pipeline.profiles import profile_manager
+    return {"profiles": profile_manager.list_profiles()}
+
+
+@app.post("/profiles")
+async def create_profile(request: Request):
+    body = await request.json()
+    from pipeline.profiles import profile_manager
+    profile = profile_manager.create_profile(
+        name=body.get("name", "User"),
+        avatar=body.get("avatar"),
+        language=body.get("language", "hi"),
+        persona=body.get("persona", "desi"),
+        city=body.get("city", ""),
+    )
+    return profile
+
+
+@app.post("/profiles/switch")
+async def switch_profile(request: Request):
+    body = await request.json()
+    from pipeline.profiles import profile_manager
+    success = profile_manager.switch_profile(body.get("profile_id", ""))
+    return {"success": success}
+
+
+@app.get("/profiles/active")
+async def active_profile():
+    from pipeline.profiles import profile_manager
+    return profile_manager.get_active_profile()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DATA EXPORT
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/export/{session_id}")
+async def export_chat(session_id: str, format: str = "json"):
+    from pipeline.branching import branching_store
+    if format == "markdown":
+        from fastapi.responses import PlainTextResponse
+        data = branching_store.export_session(session_id, format="markdown")
+        return PlainTextResponse(data, media_type="text/markdown")
+    else:
+        data = branching_store.export_session(session_id, format="json")
+        return json.loads(data)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# OFFLINE MODE
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/offline/knowledge")
+async def offline_knowledge(topic: str = None):
+    from pipeline.offline import offline_cache
+    return {"knowledge": offline_cache.get_offline_knowledge(topic)}
+
+
+@app.get("/offline/cache-stats")
+async def cache_stats():
+    from pipeline.offline import offline_cache
+    return offline_cache.get_cache_stats()
+
+
+@app.post("/offline/sync")
+async def sync_offline(request: Request):
+    body = await request.json()
+    from pipeline.offline import offline_cache
+    success = offline_cache.queue_sync(
+        session_id=body.get("session_id", "default"),
+        message=body.get("message", ""),
+        persona=body.get("persona", "desi"),
+    )
+    return {"queued": success}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# WHATSAPP / TELEGRAM WEBHOOKS
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/webhook/whatsapp")
+async def whatsapp_verify(request: Request):
+    """WhatsApp webhook verification."""
+    from pipeline.messaging import whatsapp
+    params = dict(request.query_params)
+    challenge = whatsapp.verify_webhook(
+        params.get("hub.mode", ""),
+        params.get("hub.verify_token", ""),
+        params.get("hub.challenge", ""),
+    )
+    if challenge:
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(challenge)
+    return JSONResponse({"error": "verification failed"}, status_code=403)
+
+
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(request: Request):
+    """WhatsApp incoming message webhook."""
+    from pipeline.messaging import whatsapp, format_for_platform
+    body = await request.json()
+    result = whatsapp.process_webhook(body)
+
+    if result["status"] == "ok" and result.get("message"):
+        # Process through the AI pipeline
+        pipeline = _ensure_pipeline()
+        if pipeline:
+            response = await pipeline.process(result["message"], {"persona": "desi", "platform": "whatsapp"})
+            text = format_for_platform(response.get("response", ""), "whatsapp")
+            whatsapp.send_message(result["phone"], text)
+
+    return {"status": "ok"}
+
+
+@app.get("/webhook/telegram")
+async def telegram_verify(request: Request):
+    """Telegram webhook verification."""
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse("OK")
+
+
+@app.post("/webhook/telegram")
+async def telegram_webhook(request: Request):
+    """Telegram incoming message webhook."""
+    from pipeline.messaging import telegram, format_for_platform
+    body = await request.json()
+    result = telegram.process_update(body)
+
+    if result["status"] == "ok" and result.get("message"):
+        chat_id = result["chat_id"]
+
+        # Send typing indicator
+        telegram.send_typing(chat_id)
+
+        # Process through AI pipeline
+        pipeline = _ensure_pipeline()
+        if pipeline:
+            response = await pipeline.process(result["message"], {"persona": "desi", "platform": "telegram"})
+            text = format_for_platform(response.get("response", ""), "telegram")
+            telegram.send_message(chat_id, text)
+
+    return {"status": "ok"}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

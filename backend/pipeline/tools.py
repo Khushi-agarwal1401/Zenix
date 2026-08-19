@@ -166,6 +166,44 @@ class ToolRegistry:
             "usage": "reason: <complex query that needs multiple steps>",
             "handler": self._handle_reason,
         }
+        self.tools["scan"] = {
+            "name": "scan",
+            "description": ("Scan/OCR a document photo: extract text from Aadhaar, PAN, receipts, bills, marksheets. "
+                "Provide an image file path or base64 data."),
+            "usage": "scan: /path/to/image.jpg | scan: <base64_data>",
+            "handler": self._handle_scan,
+        }
+        self.tools["profile"] = {
+            "name": "profile",
+            "description": "Manage user profiles for family sharing. Create, switch, list, and update profiles.",
+            "usage": "profile: list | profile: create Ram | profile: switch Ram | profile: update {language: hi}",
+            "handler": self._handle_profile,
+        }
+        self.tools["export"] = {
+            "name": "export",
+            "description": "Export chat history as JSON, Markdown, or PDF.",
+            "usage": "export: json | export: markdown | export: pdf",
+            "handler": self._handle_export,
+        }
+        self.tools["branch"] = {
+            "name": "branch",
+            "description": ("Conversation branching: go back to a previous message and fork a new conversation path. "
+                "List branches or create a new one."),
+            "usage": "branch: list | branch: fork <message_id> | branch: switch <branch_id>",
+            "handler": self._handle_branch,
+        }
+        self.tools["suggest"] = {
+            "name": "suggest",
+            "description": "Get proactive follow-up suggestions based on the conversation context.",
+            "usage": "suggest: followup | suggest: topics",
+            "handler": self._handle_suggest,
+        }
+        self.tools["offline"] = {
+            "name": "offline",
+            "description": "Offline mode: get cached responses, queue messages for sync, check offline knowledge.",
+            "usage": "offline: knowledge | offline: cache stats | offline: sync queue",
+            "handler": self._handle_offline,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -1154,7 +1192,8 @@ class ToolRegistry:
             try:
                 profile = json.loads(args)
             except json.JSONDecodeError:
-                # Try extracting key: value pairs            profile = {}
+                # Try extracting key: value pairs
+                profile = {}
             for part in args.replace(", ", ",").split(","):
                 if ":" in part:
                     k, v = part.split(":", 1)
@@ -1381,6 +1420,260 @@ class ToolRegistry:
             return "Reasoning module not available."
         except Exception as e:
             return f"Reasoning error: {e}"
+
+    # ── Document Scanner / OCR ───────────────────────────────────────────────
+
+    def _handle_scan(self, args: str) -> str:
+        try:
+            from .multimodal import multimodal
+            args = args.strip()
+
+            if not args:
+                return "Provide an image path or base64 data to scan.\nUsage: scan: /path/to/image.jpg"
+
+            # Check if it's a file path
+            if os.path.exists(args):
+                result = multimodal.process_image(args)
+            elif len(args) > 100:  # Likely base64
+                result = multimodal.process_base64(args)
+            else:
+                return f"File not found: {args}. Provide a valid image path."
+
+            if result.get("error"):
+                return f"Scan error: {result['error']}"
+
+            lines = [f"**Document Scan Result:**\n"]
+            lines.append(f"Type: {result.get('type', 'unknown')}")
+
+            if result.get("document_type"):
+                lines.append(f"Document: {result['document_type'].upper()}")
+            if result.get("raw_text"):
+                lines.append(f"\n**Extracted Text:**\n{result['raw_text'][:500]}")
+            if result.get("extracted_fields"):
+                lines.append(f"\n**Extracted Fields:**")
+                for k, v in result["extracted_fields"].items():
+                    lines.append(f"  - {k}: {v}")
+            if result.get("receipt_data"):
+                lines.append(f"\n**Receipt Data:**")
+                for k, v in result["receipt_data"].items():
+                    lines.append(f"  - {k}: {v}")
+            if result.get("message"):
+                lines.append(f"\n{result['message']}")
+
+            return "\n".join(lines)
+        except ImportError:
+            return "Multi-modal module not available."
+        except Exception as e:
+            return f"Scan error: {e}"
+
+    # ── Multi-User Profiles ───────────────────────────────────────────────────
+
+    def _handle_profile(self, args: str) -> str:
+        try:
+            from .profiles import profile_manager
+            action = args.strip().lower()
+
+            if action.startswith("list"):
+                profiles = profile_manager.list_profiles()
+                if not profiles:
+                    return "No profiles found. Create one with: profile: create <name>"
+                lines = ["**User Profiles:**\n"]
+                for p in profiles:
+                    active = " (Active)" if p["is_primary"] else ""
+                    lines.append(f"{p['avatar']} **{p['name']}**{active}")
+                    lines.append(f"  Language: {p['language']}, Persona: {p['persona']}")
+                    if p.get("city"):
+                        lines.append(f"  Location: {p['city']}")
+                    lines.append("")
+                return "\n".join(lines)
+
+            elif action.startswith("create"):
+                name = args[6:].strip()
+                if not name:
+                    return "Provide a name: profile: create <name>"
+                profile = profile_manager.create_profile(name)
+                return f"Created profile: {profile['avatar']} {profile['name']} (ID: {profile['profile_id']})"
+
+            elif action.startswith("switch"):
+                name_or_id = args[6:].strip()
+                profiles = profile_manager.list_profiles()
+                for p in profiles:
+                    if p["name"].lower() == name_or_id.lower() or p["profile_id"] == name_or_id:
+                        profile_manager.switch_profile(p["profile_id"])
+                        return f"Switched to: {p['avatar']} {p['name']}"
+                return f"Profile not found: {name_or_id}"
+
+            elif action.startswith("update"):
+                json_str = args[6:].strip()
+                try:
+                    prefs = json.loads(json_str)
+                except json.JSONDecodeError:
+                    prefs = {}
+                    for part in json_str.replace(", ", ",").split(","):
+                        if ":" in part:
+                            k, v = part.split(":", 1)
+                            prefs[k.strip()] = v.strip()
+                active = profile_manager.get_active_profile()
+                profile_manager.update_profile(active["profile_id"], **prefs)
+                return f"Updated profile: {active['name']} with {json.dumps(prefs, ensure_ascii=False)}"
+
+            elif action.startswith("delete"):
+                name_or_id = args[6:].strip()
+                profiles = profile_manager.list_profiles()
+                for p in profiles:
+                    if (p["name"].lower() == name_or_id.lower() or p["profile_id"] == name_or_id) and not p["is_primary"]:
+                        profile_manager.delete_profile(p["profile_id"])
+                        return f"Deleted profile: {p['name']}"
+                return "Cannot delete primary profile or profile not found."
+
+            else:
+                active = profile_manager.get_active_profile()
+                return f"Active: {active['avatar']} {active['name']} | Use: profile: list | create | switch | update | delete"
+
+        except ImportError:
+            return "Profile module not available."
+        except Exception as e:
+            return f"Profile error: {e}"
+
+    # ── Data Export ───────────────────────────────────────────────────────────
+
+    def _handle_export(self, args: str) -> str:
+        try:
+            from .branching import branching_store
+            fmt = args.strip().lower()
+            session_id = "default"
+
+            if fmt.startswith("json") or not fmt:
+                data = branching_store.export_session(session_id, format="json")
+                path = f"/tmp/zenix_export_{session_id}.json"
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(data)
+                return f"Exported to {path} (JSON, {len(data)} bytes)"
+
+            elif fmt.startswith("markdown") or fmt.startswith("md"):
+                data = branching_store.export_session(session_id, format="markdown")
+                path = f"/tmp/zenix_export_{session_id}.md"
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(data)
+                return f"Exported to {path} (Markdown, {len(data)} bytes)"
+
+            elif fmt.startswith("pdf"):
+                data = branching_store.export_session(session_id, format="markdown")
+                try:
+                    from .documents import markdown_to_html, generate_pdf
+                    html = markdown_to_html(data, title="Zenix Chat History")
+                    path = f"/tmp/zenix_export_{session_id}.pdf"
+                    result = generate_pdf(html, path)
+                    if result:
+                        return f"Exported to {result} (PDF)"
+                    return "PDF libraries not available. Install weasyprint. Exported as Markdown instead."
+                except ImportError:
+                    return "PDF export requires weasyprint. Markdown exported."
+
+            return "Usage: export: json | export: markdown | export: pdf"
+
+        except ImportError:
+            return "Export module not available."
+        except Exception as e:
+            return f"Export error: {e}"
+
+    # ── Conversation Branching ────────────────────────────────────────────────
+
+    def _handle_branch(self, args: str) -> str:
+        try:
+            from .branching import branching_store
+            action = args.strip().lower()
+            session_id = "default"
+
+            if action.startswith("list"):
+                branches = branching_store.get_branches(session_id)
+                if not branches:
+                    return "No branches yet. Start a conversation first."
+                lines = ["**Conversation Branches:**\n"]
+                for b in branches:
+                    active = " (current)" if b["branch_id"] == "main" else ""
+                    lines.append(f"  🌿 **{b['branch_id']}**{active} — {b['msg_count']} messages")
+                return "\n".join(lines)
+
+            elif action.startswith("fork"):
+                msg_id = action[4:].strip()
+                if not msg_id:
+                    return "Provide message ID to fork from: branch: fork <message_id>"
+                import time
+                new_branch = f"branch_{int(time.time())}"
+                success = branching_store.fork_from(session_id, msg_id, new_branch)
+                if success:
+                    return f"Forked new branch: {new_branch} from message {msg_id}"
+                return f"Could not fork from message {msg_id}. Check the message ID."
+
+            return "Usage: branch: list | branch: fork <message_id> | branch: switch <branch_id>"
+
+        except ImportError:
+            return "Branching module not available."
+        except Exception as e:
+            return f"Branch error: {e}"
+
+    # ── Proactive Suggestions ─────────────────────────────────────────────────
+
+    def _handle_suggest(self, args: str) -> str:
+        try:
+            from .suggestions import suggestion_engine
+            action = args.strip().lower()
+
+            if action.startswith("followup") or action.startswith("topics"):
+                # This would be called with the last message/response context
+                suggestions = suggestion_engine.get_followup_questions("", "desi")
+                if suggestions:
+                    lines = ["**Suggested follow-ups:**\n"]
+                    for s in suggestions:
+                        lines.append(f"  💡 {s}")
+                    return "\n".join(lines)
+                return "No suggestions available."
+
+            return "Usage: suggest: followup | suggest: topics"
+
+        except ImportError:
+            return "Suggestions module not available."
+        except Exception as e:
+            return f"Suggestion error: {e}"
+
+    # ── Offline Mode ──────────────────────────────────────────────────────────
+
+    def _handle_offline(self, args: str) -> str:
+        try:
+            from .offline import offline_cache
+            action = args.strip().lower()
+
+            if action.startswith("knowledge") or action.startswith("help"):
+                knowledge = offline_cache.get_offline_knowledge()
+                lines = ["**Offline Knowledge Base:**\n"]
+                for topic, content in knowledge.items():
+                    lines.append(f"📌 **{topic.replace('_', ' ').title()}**")
+                    lines.append(f"{content[:200]}...\n")
+                return "\n".join(lines)
+
+            elif action.startswith("cache"):
+                stats = offline_cache.get_cache_stats()
+                return (f"**Offline Cache Stats:**\n"
+                        f"  📦 Cached responses: {stats['cached_responses']}\n"
+                        f"  📤 Pending sync: {stats['pending_sync']}\n"
+                        f"  📚 Offline knowledge: {stats['offline_knowledge']}")
+
+            elif action.startswith("sync"):
+                pending = offline_cache.get_pending_sync()
+                if not pending:
+                    return "No messages pending sync."
+                lines = [f"**Pending Sync ({len(pending)} messages):**\n"]
+                for p in pending[:5]:
+                    lines.append(f"  - [{p['created_at'][:16]}] {p['message'][:50]}...")
+                return "\n".join(lines)
+
+            return "Usage: offline: knowledge | offline: cache stats | offline: sync queue"
+
+        except ImportError:
+            return "Offline module not available."
+        except Exception as e:
+            return f"Offline error: {e}"
 
     # ── Registry API ──────────────────────────────────────────────────────────
 

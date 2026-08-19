@@ -294,3 +294,93 @@ body {
   background: rgba(120, 120, 130, 0.2);
   border-radius: 2px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACCESSIBILITY STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Screen reader only class */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Accessibility font scaling */
+html {
+  font-size: calc(16px * var(--accessibility-font-scale, 1));
+}
+
+/* High contrast mode */
+html.high-contrast {
+  --background: #ffffff;
+  --foreground: #000000;
+}
+html.high-contrast body {
+  color: #000000 !important;
+  background: #ffffff !important;
+}
+html.high-contrast .bg-zinc-50 { background: #ffffff !important; }
+html.high-contrast .dark\:bg-zinc-950 { background: #000000 !important; }
+html.high-contrast a, html.high-contrast button { color: #0000ee !important; }
+html.high-contrast .text-zinc-400, html.high-contrast .text-zinc-500,
+html.high-contrast .text-zinc-600 { color: #333333 !important; }
+html.high-contrast .border-zinc-200,
+html.high-contrast .dark\:border-zinc-800 { border-color: #666666 !important; }
+@media (prefers-color-scheme: dark) {
+  html.high-contrast body { color: #ffffff !important; background: #000000 !important; }
+  html.high-contrast a, html.high-contrast button { color: #6699ff !important; }
+  html.high-contrast .text-zinc-400, html.high-contrast .text-zinc-500,
+  html.high-contrast .text-zinc-600 { color: #cccccc !important; }
+}
+
+/* Reduce motion */
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Dyslexia-friendly font (OpenDyslexic) */
+html.dyslexia-font body {
+  font-family: 'OpenDyslexic', 'Comic Sans MS', cursive, sans-serif !important;
+  letter-spacing: 0.05em;
+  word-spacing: 0.1em;
+}
+
+/* Line spacing */
+html { line-height: var(--accessibility-line-spacing, 1.5); }
+
+/* Enhanced focus indicators for keyboard navigation */
+:focus-visible {
+  outline: 3px solid rgba(139, 92, 246, 0.6);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skip to main content link */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #7c3aed;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  z-index: 9999;
+  transition: top 0.2s;
+}
+.skip-link:focus {
+  top: 8px;
+}
