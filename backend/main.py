@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File, Form
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -167,6 +167,78 @@ async def status_endpoint():
         "cache": response_cache.stats(),
         "rate_limiter": rate_limiter.stats(),
     }
+
+
+@app.post("/voice/transcribe")
+async def voice_transcribe_endpoint(
+    audio: UploadFile = File(...),
+    language: str = Form("hi"),
+):
+    """Server-side STT endpoint — transcribes audio to text."""
+    try:
+        from pipeline.speech import speech_service
+
+        audio_data = await audio.read()
+        result = speech_service.transcribe_audio(
+            audio_data,
+            language=language,
+            format=audio.filename.rsplit(".", 1)[-1] if audio.filename else "webm",
+        )
+        return result
+    except ImportError:
+        return JSONResponse(
+            status_code=501,
+            content={"error": "Speech recognition not installed. Install: pip install openai-whisper"},
+        )
+    except Exception as e:
+        log.error(f"Voice transcribe error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Transcription failed: {str(e)}"},
+        )
+
+
+@app.post("/voice/synthesize")
+async def voice_synthesize_endpoint(
+    text: str = Form(...),
+    language: str = Form("hi"),
+):
+    """Server-side TTS endpoint — converts text to speech audio."""
+    try:
+        from pipeline.speech import speech_service
+        from fastapi.responses import Response
+
+        result = speech_service.synthesize_speech(text, language=language)
+
+        if result.get("error"):
+            return JSONResponse(status_code=500, content={"error": result["error"]})
+
+        media_type = f"audio/{result['format']}"
+        return Response(
+            content=result["audio_data"],
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="zenix_speech.{result["format"]}"',
+            },
+        )
+    except ImportError:
+        return JSONResponse(
+            status_code=501,
+            content={"error": "TTS not installed. Install: pip install gTTS pyttsx3"},
+        )
+    except Exception as e:
+        log.error(f"Voice synthesize error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Synthesis failed: {str(e)}"},
+        )
+
+
+@app.get("/voice/languages")
+async def voice_languages_endpoint():
+    """Return supported speech languages."""
+    from pipeline.speech import INDIAN_LANGUAGES
+    return {"languages": INDIAN_LANGUAGES}
 
 
 @app.post("/cache/clear")

@@ -54,6 +54,11 @@ TOOL_KEYWORDS = {
     "holiday:": "calendar",
     "tyohaar:": "calendar",
     "chutti:": "calendar",
+    "speech:": "speech",
+    "speak:": "speech",
+    "tts:": "speech",
+    "read aloud:": "speech",
+    "bol:": "speech",
 }
 
 

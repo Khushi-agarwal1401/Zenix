@@ -14,6 +14,7 @@ import urllib.error
 import urllib.parse
 from typing import Any, Dict, Optional
 from datetime import datetime
+from .speech import INDIAN_LANGUAGES
 
 
 class ToolRegistry:
@@ -125,6 +126,12 @@ class ToolRegistry:
             "description": "Get Indian festival info, holidays, and cultural calendar events.",
             "usage": "calendar: today | calendar: next festival | calendar: holidays in October",
             "handler": self._handle_calendar,
+        }
+        self.tools["speech"] = {
+            "name": "speech",
+            "description": "Text-to-Speech: Convert text to spoken audio. Use for reading out answers, news, or notifications.",
+            "usage": "speech: <text> | speech: <text> in Hindi | speech: <text> language=bn",
+            "handler": self._handle_speech,
         }
 
     # ── Sample Database ───────────────────────────────────────────────────────
@@ -1041,6 +1048,69 @@ class ToolRegistry:
 
         except Exception as e:
             return f"Calendar error: {e}"
+
+    # ── Speech Tool ──────────────────────────────────────────────────────────
+
+    def _handle_speech(self, args: str) -> str:
+        """Text-to-Speech: Convert text to spoken audio."""
+        if not args.strip():
+            return "Error: Please provide text to speak. Example: speech: Namaste, how are you?"
+
+        # Parse language from args: "text language=hi" or "text in Hindi"
+        language = "en"
+        text = args.strip()
+
+        # Check for "language=XX" pattern
+        lang_match = re.search(r'language=(\w+)', args, re.IGNORECASE)
+        if lang_match:
+            language = lang_match.group(1).lower()
+            text = re.sub(r'\s*language=\w+', '', args, flags=re.IGNORECASE).strip()
+        else:
+            # Check for "in <language>" pattern
+            in_match = re.search(r'\bin\s+([a-zA-Z]+)\s*$', args, re.IGNORECASE)
+            if in_match:
+                lang_name = in_match.group(1).lower()
+                # Resolve language name to code
+                lang_codes = {
+                    "hindi": "hi", "bengali": "bn", "telugu": "te",
+                    "marathi": "mr", "tamil": "ta", "gujarati": "gu",
+                    "urdu": "ur", "kannada": "kn", "malayalam": "ml",
+                    "odia": "or", "punjabi": "pa", "english": "en",
+                }
+                language = lang_codes.get(lang_name, "en")
+                text = args[:in_match.start()].strip()
+
+        if not text:
+            return "Error: No text provided to speak."
+
+        try:
+            from .speech import speech_service
+            result = speech_service.synthesize_speech(text, language=language)
+
+            if result.get("error"):
+                return f"Speech error: {result['error']}"
+
+            # Save audio to temp file and return path
+            import tempfile
+            audio_format = result.get("format", "mp3")
+            with tempfile.NamedTemporaryFile(
+                suffix=f".{audio_format}", delete=False, dir="/tmp"
+            ) as f:
+                f.write(result["audio_data"])
+                audio_path = f.name
+
+            return (
+                f"🔊 Audio generated ({audio_format.upper()})\n"
+                f"  📁 File: {audio_path}\n"
+                f"  🌐 Language: {INDIAN_LANGUAGES.get(language, {}).get('name', language)}\n"
+                f"  ⏱️ Duration: ~{result.get('duration', 0):.1f}s\n"
+                f"  📝 Text: {text[:100]}{'...' if len(text) > 100 else ''}"
+            )
+
+        except ImportError:
+            return "Speech module not installed. Install: pip install gTTS pyttsx3"
+        except Exception as e:
+            return f"Speech synthesis error: {e}"
 
     # ── Registry API ──────────────────────────────────────────────────────────
 
