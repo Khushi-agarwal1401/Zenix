@@ -57,6 +57,9 @@ def ingest_knowledge_base():
         "transport.md",
         "employment.md",
         "regional.md",
+        "states_india.md",
+        "legal_expanded.md",
+        "financial_literacy.md",
     ]
     
     # Chunking configuration
@@ -159,6 +162,12 @@ def _get_domain(filename: str) -> str:
         return "employment"
     elif "regional" in filename.lower():
         return "regional"
+    elif "states" in filename.lower():
+        return "states_specific"
+    elif "financial_literacy" in filename.lower():
+        return "financial_literacy"
+    elif "legal_expanded" in filename.lower():
+        return "legal_expanded"
     return "general"
 
 

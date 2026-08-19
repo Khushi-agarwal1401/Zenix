@@ -204,6 +204,26 @@ class ToolRegistry:
             "usage": "offline: knowledge | offline: cache stats | offline: sync queue",
             "handler": self._handle_offline,
         }
+        self.tools["pincode"] = {
+            "name": "pincode",
+            "description": ("Indian pincode lookup: find city, district, state from pincode. "
+                "Also validates Aadhaar, PAN, and phone numbers."),
+            "usage": "pincode: 110001 | pincode: validate aadhaar 123456789012 | pincode: validate pan ABCDE1234F",
+            "handler": self._handle_pincode,
+        }
+        self.tools["sip"] = {
+            "name": "sip",
+            "description": ("SIP calculator: calculate mutual fund SIP returns, compare funds, "
+                "find required SIP for a financial goal."),
+            "usage": "sip: 5000 for 10 years at 12% | sip: compare 5000 for 10 years | sip: goal 5000000 in 10 years at 12%",
+            "handler": self._handle_sip,
+        }
+        self.tools["crop"] = {
+            "name": "crop",
+            "description": "Crop advisory: seasonal advice, mandi prices, farming guidance for Indian farmers.",
+            "usage": "crop: season | crop: price rice | crop: advisory",
+            "handler": self._handle_crop,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -1674,6 +1694,223 @@ class ToolRegistry:
             return "Offline module not available."
         except Exception as e:
             return f"Offline error: {e}"
+
+    # ── Pincode / Validation Tool ────────────────────────────────────────────
+
+    def _handle_pincode(self, args: str) -> str:
+        try:
+            from .pincode import pincode_service
+            args = args.strip()
+
+            if args.lower().startswith("validate aadhaar"):
+                aadhaar = args.split()[-1]
+                result = pincode_service.validate_aadhaar(aadhaar)
+                if result.get("valid"):
+                    return f"\u2705 Valid Aadhaar\n  Masked: {result['masked']}"
+                return f"\u274c Invalid Aadhaar: {result.get('error', 'Unknown error')}"
+
+            elif args.lower().startswith("validate pan"):
+                pan = args.split()[-1]
+                result = pincode_service.validate_pan(pan)
+                if result.get("valid"):
+                    return f"\u2705 Valid PAN\n  Type: {result['type']}\n  Masked: {result['masked']}"
+                return f"\u274c Invalid PAN: {result.get('error', 'Unknown error')}"
+
+            elif args.lower().startswith("validate phone"):
+                phone = args.split()[-1]
+                result = pincode_service.validate_phone(phone)
+                if result.get("valid"):
+                    return f"\u2705 Valid Phone\n  Formatted: {result['formatted']}"
+                return f"\u274c Invalid Phone: {result.get('error', 'Unknown error')}"
+
+            elif args.lower().startswith("format"):
+                parts = args.split()
+                pincode = parts[1] if len(parts) > 1 else ""
+                landmark = parts[2] if len(parts) > 2 else ""
+                return pincode_service.format_address(pincode, landmark)
+
+            else:
+                # Default: pincode lookup
+                result = pincode_service.lookup(args)
+                if result.get("error"):
+                    return result["error"]
+                lines = [f"**Pincode {result['pincode']}:**\n"]
+                lines.append(f"\ud83d\udccd {result['formatted_address']}")
+                lines.append(f"\ud83c\udfe2 District: {result['district']}")
+                lines.append(f"\ud83d\udfcdb State: {result['state']}")
+                if result.get("post_offices"):
+                    lines.append(f"\ud83d\udce7 Post offices ({result['total_post_offices']}): {', '.join(result['post_offices'][:5])}")
+                return "\n".join(lines)
+
+        except ImportError:
+            return "Pincode module not available."
+        except Exception as e:
+            return f"Pincode error: {e}"
+
+    # ── SIP Calculator ───────────────────────────────────────────────────────
+
+    def _handle_sip(self, args: str) -> str:
+        try:
+            from .financial_tools import sip_calculator
+            args = args.strip().lower()
+
+            # Parse: sip: 5000 for 10 years at 12%
+            import re
+            match = re.match(r'(\d+[\d,]*)(?:\s+for)?\s+(\d+)\s+years?(?:\s+at)?\s+(\d+(?:\.\d+)?)%?', args)
+            if match:
+                amount = float(match.group(1).replace(',', ''))
+                years = int(match.group(2))
+                rate = float(match.group(3))
+                result = sip_calculator.calculate_sip(amount, years, rate)
+                return (
+                    f"**SIP Calculation:**\n"
+                    f"  \ud83d\udcb0 Monthly: Rs {result['monthly_investment']:,.0f}\n"
+                    f"  \ud83d\udcc5 Duration: {result['years']} years ({result['years']*12} months)\n"
+                    f"  \ud83d\udcc8 Expected Return: {result['expected_return']}%\n"
+                    f"  \n"
+                    f"  \u2705 **Total Invested:** Rs {result['total_invested']:,.0f}\n"
+                    f"  \ud83d\udcb3 **Maturity Value:** Rs {result['maturity_value']:,.0f}\n"
+                    f"  \ud83d\udcc9 **Wealth Gained:** Rs {result['wealth_gained']:,.0f} ({result['return_percentage']}%)"
+                )
+
+            # Parse: sip: compare 5000 for 10 years
+            compare_match = re.match(r'compare\s+(\d+[\d,]*)(?:\s+for)?\s+(\d+)', args)
+            if compare_match:
+                amount = float(compare_match.group(1).replace(',', ''))
+                years = int(compare_match.group(2))
+                results = sip_calculator.compare_funds(amount, years)
+                lines = [f"**SIP Comparison: Rs {amount:,.0f}/month for {years} years:**\n"]
+                lines.append(f"{'Fund':<25} {'Invested':>12} {'Maturity':>14} {'Returns':>10}")
+                lines.append("-" * 65)
+                for r in results:
+                    lines.append(f"{r['fund']:<25} Rs {r['total_invested']:>10,.0f} Rs {r['maturity_value']:>12,.0f} {r['return_percentage']:>8}%")
+                return "\n".join(lines)
+
+            # Parse: sip: goal 5000000 in 10 years at 12%
+            goal_match = re.match(r'goal\s+(\d+[\d,]*)(?:\s+in)?\s+(\d+)\s+years?(?:\s+at)?\s+(\d+(?:\.\d+)?)%?', args)
+            if goal_match:
+                target = float(goal_match.group(1).replace(',', ''))
+                years = int(goal_match.group(2))
+                rate = float(goal_match.group(3))
+                required = sip_calculator.required_sip(target, years, rate)
+                return (
+                    f"**Goal: Rs {target:,.0f} in {years} years @ {rate}%**\n"
+                    f"  \ud83c\udfaf Required Monthly SIP: **Rs {required:,.0f}**\n"
+                    f"  \ud83d\udcb0 Total Investment: Rs {required * years * 12:,.0f}\n"
+                    f"  \ud83d\udcc9 Wealth Gain: Rs {target - required * years * 12:,.0f}"
+                )
+
+            return "Usage: sip: 5000 for 10 years at 12% | sip: compare 5000 for 10 years | sip: goal 5000000 in 10 years at 12%"
+
+        except ImportError:
+            return "Financial tools not available."
+        except Exception as e:
+            return f"SIP error: {e}"
+
+    # ── Crop Advisory ─────────────────────────────────────────────────────────
+
+    def _handle_crop(self, args: str) -> str:
+        try:
+            from .financial_tools import crop_advisory
+            args = args.strip().lower()
+
+            if args.startswith("price") or args.startswith("msp"):
+                crop = args.replace("price", "").replace("msp", "").strip()
+                return crop_advisory.get_mandi_prices(crop)
+
+            elif args.startswith("season") or args.startswith("advisory") or not args:
+                from datetime import datetime
+                month = datetime.now().month
+                result = crop_advisory.get_season_advisory(month)
+                lines = [f"**Crop Advisory ({result['current_season']} Season):**\n"]
+                lines.append(f"\ud83d\udcc5 Period: {result['months']}")
+                lines.append(f"\ud83c\udfe0 Sowing: {result['sowing_time']}")
+                lines.append(f"\ud83e\uddea Harvesting: {result['harvesting_time']}")
+                lines.append(f"\ud83c\udf3e Main Crops: {', '.join(result['crops'])}")
+                lines.append(f"\n\ud83d\udca1 **Advice:** {result['advice']}")
+                return "\n".join(lines)
+
+            return "Usage: crop: season | crop: price rice | crop: advisory"
+
+        except ImportError:
+            return "Crop advisory not available."
+        except Exception as e:
+            return f"Crop error: {e}"
+
+    # ── Enhanced Weather (7-day forecast) ─────────────────────────────────────
+
+    def _handle_weather_enhanced(self, args: str) -> str:
+        """Enhanced weather with 7-day forecast and crop advisory."""
+        city_name = args.strip()
+        if not city_name:
+            return "Error: Please provide a city name. Example: weather: Mumbai"
+
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+            # Geocode
+            geocode_url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(city_name)}&count=1&language=en"
+            req = urllib.request.Request(geocode_url, headers={"User-Agent": "Zenix/1.0"})
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            if not data.get("results"):
+                return f"Could not find weather for '{city_name}'."
+
+            place = data["results"][0]
+            lat, lon = place["latitude"], place["longitude"]
+            resolved = place.get("name", city_name)
+
+            # 7-day forecast
+            forecast_url = (
+                f"https://api.open-meteo.com/v1/forecast"
+                f"?latitude={lat}&longitude={lon}"
+                f"&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code"
+                f"&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code"
+                f"&timezone=auto&forecast_days=7"
+            )
+            req2 = urllib.request.Request(forecast_url, headers={"User-Agent": "Zenix/1.0"})
+            with urllib.request.urlopen(req2, timeout=10, context=ctx) as resp2:
+                wdata = json.loads(resp2.read().decode("utf-8"))
+
+            current = wdata.get("current", {})
+            daily = wdata.get("daily", {})
+
+            weather_codes = {
+                0: "Clear", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+                45: "Fog", 51: "Light drizzle", 53: "Drizzle", 55: "Dense drizzle",
+                61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+                71: "Snow", 73: "Moderate snow", 75: "Heavy snow",
+                80: "Rain showers", 81: "Moderate showers", 82: "Violent showers",
+                95: "Thunderstorm", 96: "Thunderstorm + hail",
+            }
+
+            desc = weather_codes.get(current.get("weather_code", 0), "Unknown")
+            lines = [
+                f"**Weather in {resolved}:**\n",
+                f"\ud83c\udf21\ufe0f **Now:** {current.get('temperature_2m', '?')}\u00b0C | {desc}",
+                f"\ud83d\udca7 Humidity: {current.get('relative_humidity_2m', '?')}% | \ud83d\udca8 Wind: {current.get('wind_speed_10m', '?')} km/h",
+                f"\n**7-Day Forecast:**",
+            ]
+
+            dates = daily.get("time", [])
+            maxs = daily.get("temperature_2m_max", [])
+            mins = daily.get("temperature_2m_min", [])
+            precip = daily.get("precipitation_sum", [])
+            codes = daily.get("weather_code", [])
+
+            for i in range(min(7, len(dates))):
+                day_desc = weather_codes.get(codes[i] if i < len(codes) else 0, "?")
+                rain = precip[i] if i < len(precip) else 0
+                rain_str = f" | \u2614 {rain}mm" if rain > 0 else ""
+                lines.append(f"  {dates[i]}: {mins[i]}-{maxs[i]}\u00b0C | {day_desc}{rain_str}")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"Weather error: {e}"
 
     # ── Registry API ──────────────────────────────────────────────────────────
 
