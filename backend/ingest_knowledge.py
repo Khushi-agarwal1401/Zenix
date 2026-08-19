@@ -51,6 +51,7 @@ def ingest_knowledge_base():
         "banking_finance.md",
         "legal_knowledge.md",
         "health_wellness.md",
+        "india_stack_dpi.md",
     ]
     
     # Chunking configuration

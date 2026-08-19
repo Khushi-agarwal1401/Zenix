@@ -48,6 +48,14 @@ class IntentClassifier(PipelineModule):
             "to english", "fahrenheit", "celsius", "kilogram", "pounds",
             "usd to inr", "inr to usd", "dollars to rupees", "rupees to dollars",
             "euros to", "pounds to", "yen to", "exchange rate", "currency conversion",
+            "web search", "search the web", "google", "look up online",
+            "news", "headlines", "breaking news", "latest news",
+            "stock price", "share price", "nse", "bse", "market price",
+            "share price of", "stock of", "reliance share", "tcs stock",
+            "location", "coordinates", "where is", "find place", "map of",
+            "near me", "nearby", "directions to",
+            "festival", "holiday", "chutti", "tyohaar", "calendar",
+            "today is what", "aaj kya hai", "kya chutti hai",
         ]
         if any(k in message for k in complex_keywords):
             return {"intent": self.INTENT_COMPLEX, "confidence": 0.85}

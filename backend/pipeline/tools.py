@@ -93,6 +93,39 @@ class ToolRegistry:
             "usage": "currency: 100 usd to inr | currency: 5000 inr to usd | currency: 50 eur to gbp",
             "handler": self._handle_currency,
         }
+        self.tools["web_search"] = {
+            "name": "web_search",
+            "description": (
+                "Search the web for current, up-to-date information. "
+                "Use when the knowledge base doesn't have the answer or for real-time queries."
+            ),
+            "usage": "web_search: <search query>",
+            "handler": self._handle_web_search,
+        }
+        self.tools["news"] = {
+            "name": "news",
+            "description": "Get latest news headlines on any topic.",
+            "usage": "news: <topic> | news: today headlines",
+            "handler": self._handle_news,
+        }
+        self.tools["stocks"] = {
+            "name": "stocks",
+            "description": "Get stock market data for Indian (NSE/BSE) and global stocks.",
+            "usage": "stocks: RELIANCE | stocks: TCS | stocks: AAPL",
+            "handler": self._handle_stocks,
+        }
+        self.tools["location"] = {
+            "name": "location",
+            "description": "Find location details, coordinates, and nearby places.",
+            "usage": "location: <place name> | location: find <query> near <place>",
+            "handler": self._handle_location,
+        }
+        self.tools["calendar"] = {
+            "name": "calendar",
+            "description": "Get Indian festival info, holidays, and cultural calendar events.",
+            "usage": "calendar: today | calendar: next festival | calendar: holidays in October",
+            "handler": self._handle_calendar,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -175,8 +208,12 @@ class ToolRegistry:
         )
 
         try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
             req = urllib.request.Request(geocode_url, headers={"User-Agent": "Zenix/1.0"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
 
             if not data.get("results"):
@@ -197,7 +234,7 @@ class ToolRegistry:
             )
 
             req2 = urllib.request.Request(weather_url, headers={"User-Agent": "Zenix/1.0"})
-            with urllib.request.urlopen(req2, timeout=10) as resp2:
+            with urllib.request.urlopen(req2, timeout=10, context=ctx) as resp2:
                 weather_data = json.loads(resp2.read().decode("utf-8"))
 
             current = weather_data.get("current", {})
@@ -718,6 +755,292 @@ class ToolRegistry:
             return f"Currency API error: {e}. Please try again later."
         except Exception as e:
             return f"Currency conversion error: {e}"
+
+    # ── Web Search Tool ───────────────────────────────────────────────────────
+
+    def _handle_web_search(self, query: str) -> str:
+        """Search the web using DuckDuckGo (no API key needed)."""
+        if not query.strip():
+            return "Error: Please provide a search query. Example: web_search: weather in Mumbai"
+
+        try:
+            import ssl as _ssl
+            from duckduckgo_search import DDGS
+
+            ctx = _ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = _ssl.CERT_NONE
+
+            with DDGS() as ddgs:
+                results = list(ddgs.text(query.strip(), max_results=5))
+
+            if not results:
+                return f"No search results found for: {query}"
+
+            output_lines = [f"🔍 Search results for: {query}\n"]
+            for i, r in enumerate(results, 1):
+                title = r.get("title", "No title")
+                body = r.get("body", "No description")
+                url = r.get("href", "")
+                output_lines.append(f"{i}. {title}")
+                output_lines.append(f"   {body[:200]}")
+                if url:
+                    output_lines.append(f"   🔗 {url}")
+                output_lines.append("")
+
+            return "\n".join(output_lines)
+
+        except ImportError:
+            return "Web search module not installed. Please install: pip install duckduckgo-search"
+        except Exception as e:
+            return f"Web search error: {e}"
+
+    # ── News Tool ─────────────────────────────────────────────────────────────
+
+    def _handle_news(self, query: str) -> str:
+        """Get latest news headlines using DuckDuckGo news search."""
+        if not query.strip():
+            query = "India today"
+
+        try:
+            import ssl as _ssl
+            from duckduckgo_search import DDGS
+
+            ctx = _ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = _ssl.CERT_NONE
+
+            with DDGS() as ddgs:
+                results = list(ddgs.news(query.strip(), max_results=5))
+
+            if not results:
+                return f"No news found for: {query}"
+
+            output_lines = [f"📰 Latest News: {query}\n"]
+            for i, r in enumerate(results, 1):
+                title = r.get("title", "No title")
+                body = r.get("body", "")
+                source = r.get("source", "")
+                date_str = r.get("date", "")
+                url = r.get("url", "")
+                output_lines.append(f"{i}. {title}")
+                if source:
+                    output_lines.append(f"   Source: {source}")
+                if body:
+                    output_lines.append(f"   {body[:150]}")
+                if url:
+                    output_lines.append(f"   🔗 {url}")
+                output_lines.append("")
+
+            return "\n".join(output_lines)
+
+        except ImportError:
+            return "News module not installed. Please install: pip install duckduckgo-search"
+        except Exception as e:
+            return f"News search error: {e}"
+
+    # ── Stocks Tool ────────────────────────────────────────────────────────────
+
+    def _handle_stocks(self, symbol: str) -> str:
+        """Get stock data from Yahoo Finance (free, no API key)."""
+        if not symbol.strip():
+            return "Error: Please provide a stock symbol. Example: stocks: RELIANCE or stocks: AAPL"
+
+        symbol = symbol.strip().upper()
+
+        # Add .NS suffix for NSE stocks if not already present
+        yf_symbol = symbol
+        if not any(suffix in symbol for suffix in [".NS", ".BO", ".L", ".TO", ".HK"]):
+            # Try NSE first, then raw symbol
+            yf_symbol = f"{symbol}.NS"
+
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+            url = (
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_symbol}"
+                f"?interval=1d&range=5d"
+            )
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            result = data.get("chart", {}).get("result", [])
+            if not result:
+                # Try without .NS suffix
+                if yf_symbol.endswith(".NS"):
+                    yf_symbol = symbol
+                    url2 = (
+                        f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_symbol}"
+                        f"?interval=1d&range=5d"
+                    )
+                    req2 = urllib.request.Request(url2, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(req2, timeout=10, context=ctx) as resp2:
+                        data2 = json.loads(resp2.read().decode("utf-8"))
+                    result = data2.get("chart", {}).get("result", [])
+
+            if not result:
+                return f"Stock symbol '{symbol}' not found. Please check the symbol."
+
+            meta = result[0].get("meta", {})
+            indicators = result[0].get("indicators", {})
+            timestamps = result[0].get("timestamp", [])
+
+            stock_name = meta.get("shortName", meta.get("symbol", symbol))
+            currency = meta.get("currency", "INR")
+            current_price = meta.get("regularMarketPrice", 0)
+            previous_close = meta.get("previousClose", 0)
+            market_state = meta.get("marketState", "UNKNOWN")
+
+            # Get historical close prices
+            closes = indicators.get("quote", [{}])[0].get("close", [])
+            closes = [c for c in closes if c is not None]
+
+            change = current_price - previous_close if previous_close else 0
+            change_pct = (change / previous_close * 100) if previous_close else 0
+            direction = "📈" if change >= 0 else "📉"
+
+            lines = [
+                f"{direction} {stock_name} ({symbol})",
+                f"  💰 Price: {currency} {current_price:,.2f}",
+                f"  📊 Change: {change:+,.2f} ({change_pct:+.2f}%)",
+                f"  📋 Previous Close: {currency} {previous_close:,.2f}",
+                f"  🏛️ Market: {market_state}",
+            ]
+
+            if closes:
+                lines.append(f"  📈 5-Day High: {currency} {max(closes):,.2f}")
+                lines.append(f"  📉 5-Day Low: {currency} {min(closes):,.2f}")
+
+            return "\n".join(lines)
+
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return f"Stock '{symbol}' not found. Try adding .NS (NSE) or .BO (BSE) suffix."
+            return f"Stock API error: {e}"
+        except Exception as e:
+            return f"Stock lookup error: {e}"
+
+    # ── Location Tool ──────────────────────────────────────────────────────────
+
+    def _handle_location(self, query: str) -> str:
+        """Find location details using Nominatim (OpenStreetMap) — free, no API key."""
+        if not query.strip():
+            return "Error: Please provide a location. Example: location: Mumbai"
+
+        try:
+            # Geocoding
+            encoded_query = urllib.parse.quote(query.strip())
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+            url = (
+                f"https://nominatim.openstreetmap.org/search"
+                f"?q={encoded_query}&format=json&limit=3&countrycodes=in"
+            )
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Zenix/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            if not data:
+                return f"Location '{query}' not found. Please try a different name."
+
+            lines = [f"📍 Location Results for: {query}\n"]
+            for i, place in enumerate(data[:3], 1):
+                name = place.get("display_name", "Unknown")
+                lat = place.get("lat", "N/A")
+                lon = place.get("lon", "N/A")
+                place_type = place.get("type", "")
+                importance = place.get("importance", 0)
+
+                # Truncate display name for readability
+                name_parts = name.split(", ")
+                short_name = ", ".join(name_parts[:4])
+
+                lines.append(f"{i}. {short_name}")
+                lines.append(f"   📐 Coordinates: {lat}, {lon}")
+                if place_type:
+                    lines.append(f"   🏷️ Type: {place_type.replace('_', ' ').title()}")
+                lines.append("")
+
+            # Add nearby search suggestion
+            lines.append("💡 Tip: Use 'location: find <item> near <place>' to search nearby.")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"Location search error: {e}"
+
+    # ── Calendar Tool ──────────────────────────────────────────────────────────
+
+    def _handle_calendar(self, query: str) -> str:
+        """Get Indian calendar info — festivals, holidays, cultural events."""
+        try:
+            from .calendar import IndianCalendar
+            cal = IndianCalendar()
+            query_lower = query.strip().lower()
+
+            if not query_lower or "today" in query_lower or "aaj" in query_lower:
+                return cal.format_calendar_response()
+
+            elif "next festival" in query_lower or "agla tyohaar" in query_lower:
+                info = cal.get_today_info()
+                uf = info.get("upcoming_festival")
+                if uf:
+                    return (
+                        f"🎉 Agla tyohaar: {uf['name']}\n"
+                        f"📅 Date: {uf['date']}\n"
+                        f"⏰ Din baad: {uf['days_until']}"
+                    )
+                return "Koi tyohaar abhi paas nahi aa raha."
+
+            elif "holidays" in query_lower or "holiday" in query_lower or "chutti" in query_lower:
+                # Try to extract month
+                month_map = {
+                    "january": 1, "february": 2, "march": 3, "april": 4,
+                    "may": 5, "june": 6, "july": 7, "august": 8,
+                    "september": 9, "october": 10, "november": 11, "december": 12,
+                    "jan": 1, "feb": 2, "mar": 3, "apr": 4,
+                    "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+                }
+                month = None
+                for name, num in month_map.items():
+                    if name in query_lower:
+                        month = num
+                        break
+
+                holidays = cal.get_holiday_calendar(month=month)
+                if holidays:
+                    lines = [f"🏛️ {('Month ' + str(month) if month else 'All')} Holidays 2026:\n"]
+                    for h in holidays:
+                        lines.append(f"  📅 {h['date']} ({h['day']}) — {h['name']} [{h['type']}]")
+                    return "\n".join(lines)
+                return f"No holidays found for the specified period."
+
+            elif "check" in query_lower or "is" in query_lower:
+                result = cal.check_if_holiday()
+                if result["is_holiday"]:
+                    events = result["regional_events"] + result["islamic_events"]
+                    holiday_name = result["national_holiday"] or ", ".join(events)
+                    banks = "🔴 Banks CLOSED" if result["banks_closed"] else "🟢 Banks OPEN"
+                    return f"🎉 Aaj holiday hai: {holiday_name}\n{banks}"
+                else:
+                    return f"📅 Aaj koi holiday nahi hai. Regular working day hai."
+
+            else:
+                return cal.format_calendar_response()
+
+        except Exception as e:
+            return f"Calendar error: {e}"
 
     # ── Registry API ──────────────────────────────────────────────────────────
 

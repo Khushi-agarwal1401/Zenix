@@ -7,6 +7,7 @@ from .modules import SystemModule, ChatModule, RAGModule
 from .agent import AgentModule
 from .generation import GenerativeModule
 from .language_detector import detect_language, normalize_input
+from .calendar import get_festival_greeting
 
 
 class TaskRouter:
@@ -59,10 +60,17 @@ class TaskRouter:
         persona = context.get("persona", "desi")
 
         if intent == IntentClassifier.INTENT_GREETING:
+            festival_greeting = get_festival_greeting()
             if persona == "desi":
-                return {"response": "Arre Namaste! Kaisa hai sab? Batao kya seva karoon?", "source": "GREETING"}
+                base = "Arre Namaste! Kaisa hai sab? Batao kya seva karoon?"
+                if festival_greeting:
+                    base = f"{festival_greeting} Arre Namaste! Kaisa hai sab? Batao kya seva karoon?"
+                return {"response": base, "source": "GREETING"}
             else:
-                return {"response": "Greetings. I am ready to assist you. Please state your query.", "source": "GREETING"}
+                base = "Greetings. I am ready to assist you. Please state your query."
+                if festival_greeting:
+                    base = f"{festival_greeting} Greetings. I am ready to assist you. Please state your query."
+                return {"response": base, "source": "GREETING"}
 
         elif intent == IntentClassifier.INTENT_SYSTEM:
             module = self.system_module
