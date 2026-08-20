@@ -62,12 +62,16 @@ class LLMClient:
         if self._local_generator is not None:
             return
         try:
-            model_name = os.environ.get("LLM_MODEL", "google/flan-t5-base")
+            # Use small model for faster loading
+            model_name = os.environ.get("LLM_MODEL", "google/flan-t5-small")
             print(f"LLMClient: Loading local model ({model_name})...")
-            from transformers import pipeline
+            from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
             self._local_generator = pipeline(
                 "text2text-generation",
-                model=model_name,
+                model=model,
+                tokenizer=tokenizer,
                 max_length=512,
                 device=-1,
             )

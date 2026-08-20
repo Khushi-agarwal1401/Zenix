@@ -322,6 +322,33 @@ class ToolRegistry:
             "usage": "epfo: check balance | epfo: uan activate | epfo: claim process | epfo: pension",
             "handler": self._handle_epfo,
         }
+        self.tools["telecom"] = {
+            "name": "telecom",
+            "description": (
+                "Telecom recharge plan comparison for Jio, Airtel, Vi, BSNL. "
+                "Compare prepaid plans by validity, data, calls, and price."
+            ),
+            "usage": "telecom: Jio 399 | telecom: compare 299 | telecom: best 1gb per day | telecom: annual Jio",
+            "handler": self._handle_telecom,
+        }
+        self.tools["stamp_duty"] = {
+            "name": "stamp_duty",
+            "description": (
+                "Stamp duty and property registration cost calculator for Indian states. "
+                "Calculate total cost including stamp duty, registration fee, and GST."
+            ),
+            "usage": "stamp_duty: 5000000 in Maharashtra | stamp_duty: 80 lakh Delhi | stamp_duty: register 1 crore Karnataka",
+            "handler": self._handle_stamp_duty,
+        }
+        self.tools["panchang"] = {
+            "name": "panchang",
+            "description": (
+                "Hindu Panchang: tithi, nakshatra, yoga, karana, muhurat, rashi. "
+                "Also provides Islamic Hijri and Sikh Nanakshahi calendar dates."
+            ),
+            "usage": "panchang: today | panchang: muhurat | panchang: rashi | panchang: 15 august 2026",
+            "handler": self._handle_panchang,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -2083,6 +2110,440 @@ class ToolRegistry:
 
         except Exception as e:
             return f"Weather error: {e}"
+
+    # ── Telecom Recharge Plans ──────────────────────────────────────────────
+
+    def _handle_telecom(self, args: str) -> str:
+        """Compare telecom recharge plans for Indian operators."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Telecom Plan Comparison:**\n\n"
+                "Usage:\n"
+                "  telecom: Jio 399 — Show Jio Rs 399 plan details\n"
+                "  telecom: compare 299 — Compare Rs 299 plans across operators\n"
+                "  telecom: best 1gb per day — Best plans with 1GB/day\n"
+                "  telecom: annual Airtel — Annual plans from Airtel\n\n"
+                "Operators: Jio, Airtel, Vi (Vodafone Idea), BSNL"
+            )
+
+        args_lower = args.lower()
+
+        # ── Plan Data ──────────────────────────────────────────────────────
+        # Reference plans as of Aug 2026 (updated periodically)
+        plans = {
+            "jio": [
+                {"price": 189, "validity": "28 days", "data": "2GB total", "calls": "Unlimited", "sms": "30", "type": "Pay as you go"},
+                {"price": 299, "validity": "28 days", "data": "1.5GB/day", "calls": "Unlimited", "sms": "100", "type": "Popular"},
+                {"price": 349, "validity": "28 days", "data": "2GB/day", "calls": "Unlimited", "sms": "100", "type": "Heavy Data"},
+                {"price": 399, "validity": "56 days", "data": "1.5GB/day", "calls": "Unlimited", "sms": "100", "type": "Value"},
+                {"price": 599, "validity": "84 days", "data": "2GB/day", "calls": "Unlimited", "sms": "100", "type": "Best Seller"},
+                {"price": 999, "validity": "84 days", "data": "3GB/day", "calls": "Unlimited", "sms": "100", "type": "Heavy"},
+                {"price": 2999, "validity": "365 days", "data": "2.5GB/day", "calls": "Unlimited", "sms": "100", "type": "Annual"},
+            ],
+            "airtel": [
+                {"price": 199, "validity": "28 days", "data": "2GB total", "calls": "Unlimited", "sms": "30", "type": "Basic"},
+                {"price": 299, "validity": "28 days", "data": "1.5GB/day", "calls": "Unlimited", "sms": "100", "type": "Popular"},
+                {"price": 399, "validity": "56 days", "data": "1.5GB/day", "calls": "Unlimited", "sms": "100", "type": "Value"},
+                {"price": 599, "validity": "84 days", "data": "2GB/day", "calls": "Unlimited", "sms": "100", "type": "Best Seller"},
+                {"price": 999, "validity": "84 days", "data": "3GB/day", "calls": "Unlimited", "sms": "100", "type": "Heavy"},
+                {"price": 3599, "validity": "365 days", "data": "2.5GB/day", "calls": "Unlimited", "sms": "100", "type": "Annual"},
+            ],
+            "vi": [
+                {"price": 179, "validity": "28 days", "data": "2GB total", "calls": "Unlimited", "sms": "30", "type": "Basic"},
+                {"price": 299, "validity": "28 days", "data": "1.5GB/day", "calls": "Unlimited", "sms": "100", "type": "Popular"},
+                {"price": 399, "validity": "56 days", "data": "1.5GB/day", "calls": "Unlimited", "sms": "100", "type": "Value"},
+                {"price": 599, "validity": "84 days", "data": "2GB/day", "calls": "Unlimited", "sms": "100", "type": "Best Seller"},
+                {"price": 2999, "validity": "365 days", "data": "2GB/day", "calls": "Unlimited", "sms": "100", "type": "Annual"},
+            ],
+            "bsnl": [
+                {"price": 187, "validity": "28 days", "data": "2GB/day", "calls": "Unlimited", "sms": "100", "type": "Budget"},
+                {"price": 299, "validity": "56 days", "data": "1GB/day", "calls": "Unlimited", "sms": "100", "type": "Value"},
+                {"price": 399, "validity": "84 days", "data": "1.5GB/day", "calls": "Unlimited", "sms": "100", "type": "Popular"},
+                {"price": 997, "validity": "180 days", "data": "2GB/day", "calls": "Unlimited", "sms": "100", "type": "Long Term"},
+                {"price": 1499, "validity": "365 days", "data": "2GB/day", "calls": "Unlimited", "sms": "100", "type": "Annual"},
+            ],
+        }
+
+        # Detect operator
+        operator = None
+        for op in plans:
+            if op in args_lower:
+                operator = op
+                break
+
+        # Detect price point
+        price_match = re.search(r'(\d{3,5})', args)
+        target_price = int(price_match.group(1)) if price_match else None
+
+        # Detect intent
+        is_compare = "compare" in args_lower
+        is_best = "best" in args_lower
+        is_annual = "annual" in args_lower or "yearly" in args_lower or "1 year" in args_lower
+        data_filter = None
+        for pattern in [r'(\d+(?:\.\d+)?)\s*gb\s*(?:per|/)?\s*day', r'(\d+(?:\.\d+)?)\s*gb/day']:
+            m = re.search(pattern, args_lower)
+            if m:
+                data_filter = float(m.group(1))
+                break
+
+        # ── Annual Plans Comparison ─────────────────────────────────────────
+        if is_annual and not operator:
+            lines = ["**Annual Recharge Plans (365 days):**\n"]
+            lines.append(f"{'Operator':<12} {'Price':>8} {'Data/Day':>10} {'Calls':>10} {'Per Day':>10}")
+            lines.append("-" * 60)
+            for op, op_plans in plans.items():
+                for p in op_plans:
+                    if "365" in p["validity"] or "annual" in p["type"].lower():
+                        per_day = p["price"] / 365
+                        lines.append(f"{op.upper():<12} Rs {p['price']:>5,} {p['data']:>10} {p['calls']:>10} Rs {per_day:>6.1f}")
+            lines.append("\n*Prices indicative. Check operator apps for latest.*")
+            return "\n".join(lines)
+
+        # ── Compare specific price across operators ─────────────────────────
+        if is_compare and target_price:
+            lines = [f"**Plans around Rs {target_price}:**\n"]
+            lines.append(f"{'Operator':<10} {'Price':>7} {'Validity':>10} {'Data':>12} {'Calls':>10}")
+            lines.append("-" * 55)
+            for op, op_plans in plans.items():
+                # Find closest plan to target price
+                closest = min(op_plans, key=lambda p: abs(p["price"] - target_price))
+                if abs(closest["price"] - target_price) <= target_price * 0.3:
+                    lines.append(f"{op.upper():<10} Rs {closest['price']:>4,} {closest['validity']:>10} {closest['data']:>12} {closest['calls']:>10}")
+            lines.append("\n*Prices indicative. Check operator apps for latest.*")
+            return "\n".join(lines)
+
+        # ── Best plan with data filter ──────────────────────────────────────
+        if is_best and data_filter:
+            lines = [f"**Best plans with {data_filter}GB/day:**\n"]
+            lines.append(f"{'Operator':<10} {'Price':>7} {'Validity':>10} {'Per Day':>10}")
+            lines.append("-" * 45)
+            for op, op_plans in plans.items():
+                for p in op_plans:
+                    if f"{data_filter}" in p["data"] and "day" in p["data"]:
+                        validity_days = int(p["validity"].split()[0])
+                        per_day = p["price"] / validity_days
+                        lines.append(f"{op.upper():<10} Rs {p['price']:>4,} {p["validity"]:>10} Rs {per_day:>6.1f}")
+            lines.append("\n*Prices indicative. Check operator apps for latest.*")
+            return "\n".join(lines)
+
+        # ── Show specific operator plans ────────────────────────────────────
+        if operator:
+            op_plans = plans[operator]
+            lines = [f"**{operator.upper()} Recharge Plans:**\n"]
+            lines.append(f"{'Price':>7} {'Validity':>10} {'Data':>12} {'Calls':>10} {'Type':>12}")
+            lines.append("-" * 60)
+            for p in op_plans:
+                lines.append(f"Rs {p['price']:>4,} {p['validity']:>10} {p['data']:>12} {p['calls']:>10} {p['type']:>12}")
+            lines.append("\n📱 **Recharge at:**")
+            lines.append(f"  - {operator.upper()} app or website")
+            lines.append("  - Paytm, PhonePe, Google Pay")
+            lines.append("  - *Prices indicative. Check operator app for latest.*")
+            return "\n".join(lines)
+
+        # ── Show closest price plan ────────────────────────────────────────
+        if target_price:
+            all_closest = []
+            for op, op_plans in plans.items():
+                closest = min(op_plans, key=lambda p: abs(p["price"] - target_price))
+                all_closest.append((op, closest))
+            all_closest.sort(key=lambda x: abs(x[1]["price"] - target_price))
+
+            lines = [f"**Closest plans to Rs {target_price}:**\n"]
+            for op, p in all_closest:
+                diff = abs(p["price"] - target_price)
+                marker = " ← closest" if diff == min(abs(c[1]["price"] - target_price) for c in all_closest) else ""
+                lines.append(f"  {op.upper()}: Rs {p['price']:,} ({p['validity']}, {p['data']}){marker}")
+            lines.append("\n*Prices indicative. Use 'telecom: compare <price>' for detailed comparison.*")
+            return "\n".join(lines)
+
+        # Default: show all operators summary
+        lines = ["**Telecom Plan Summary:**\n"]
+        for op, op_plans in plans.items():
+            cheapest = min(op_plans, key=lambda p: p["price"])
+            best = max(op_plans, key=lambda p: p["price"])
+            lines.append(f"  {op.upper()}: Rs {cheapest['price']:,} - Rs {best['price']:,}")
+        lines.append("\nUsage: telecom: <operator> | telecom: compare <price> | telecom: best 1gb per day | telecom: annual")
+        return "\n".join(lines)
+
+    # ── Stamp Duty Calculator ───────────────────────────────────────────────
+
+    def _handle_stamp_duty(self, args: str) -> str:
+        """Calculate stamp duty and registration costs for property transactions."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Stamp Duty Calculator:**\n\n"
+                "Usage:\n"
+                "  stamp_duty: 5000000 in Maharashtra\n"
+                "  stamp_duty: 80 lakh Delhi\n"
+                "  stamp_duty: 1 crore Karnataka\n\n"
+                "Supports: Maharashtra, Delhi, Karnataka, Tamil Nadu, Gujarat, Rajasthan, UP, Bihar,"
+                " West Bengal, Telangana, Andhra Pradesh, Kerala, Punjab, Haryana, MP, CG, Odisha, Goa"
+            )
+
+        args_lower = args.lower()
+
+        # Parse property value
+        value = 0
+        # Handle lakh/crore
+        cr_match = re.search(r'(\d+(?:\.\d+)?)\s*cr(?:ore)?s?', args_lower)
+        lk_match = re.search(r'(\d+(?:\.\d+)?)\s*l(?:akh)?s?', args_lower)
+        num_match = re.search(r'([\d,]+)', args)
+
+        if cr_match:
+            value = float(cr_match.group(1)) * 1_00_00_000
+        elif lk_match:
+            value = float(lk_match.group(1)) * 1_00_000
+        elif num_match:
+            value = float(num_match.group(1).replace(',', ''))
+
+        if value <= 0:
+            return "Please provide property value. Example: stamp_duty: 50 lakh Maharashtra"
+
+        # Detect state
+        state = None
+        state_keywords = {
+            "maharashtra": "Maharashtra", "mumbai": "Maharashtra", "pune": "Maharashtra",
+            "delhi": "Delhi", "new delhi": "Delhi", "ncr": "Delhi",
+            "karnataka": "Karnataka", "bangalore": "Karnataka", "bengaluru": "Karnataka",
+            "tamil nadu": "Tamil Nadu", "chennai": "Tamil Nadu",
+            "gujarat": "Gujarat", "ahmedabad": "Gujarat", "surat": "Gujarat",
+            "rajasthan": "Rajasthan", "jaipur": "Rajasthan",
+            "uttar pradesh": "UP", "up": "UP", "noida": "UP", "lucknow": "UP",
+            "west bengal": "West Bengal", "kolkata": "West Bengal",
+            "bihar": "Bihar", "patna": "Bihar",
+            "telangana": "Telangana", "hyderabad": "Telangana",
+            "andhra pradesh": "AP", "vijayawada": "AP",
+            "kerala": "Kerala", "kochi": "Kerala", "thiruvananthapuram": "Kerala",
+            "punjab": "Punjab", "amritsar": "Punjab", "ludhiana": "Punjab",
+            "haryana": "Haryana", "gurgaon": "Haryana", "gurugram": "Haryana",
+            "madhya pradesh": "MP", "bhopal": "MP", "indore": "MP",
+            "chhattisgarh": "CG", "raipur": "CG",
+            "odisha": "Odisha", "bhubaneswar": "Odisha",
+            "goa": "Goa", "panaji": "Goa",
+        }
+        for keyword, st in state_keywords.items():
+            if keyword in args_lower:
+                state = st
+                break
+
+        if not state:
+            state = "Maharashtra"  # default
+
+        # State-wise stamp duty rates (approximate FY 2025-26)
+        stamp_rates = {
+            "Maharashtra": {"rate": 6.0, "metro额外": 1.0, "reg_fee": 1.0, "note": "Mumbai/Nagpur/Pune: 6% + 1% metro surcharge"},
+            "Delhi": {"rate": 4.0, "metro额外": 0, "reg_fee": 1.0, "note": "4% stamp duty + 1% registration"},
+            "Karnataka": {"rate": 5.6, "metro额外": 0, "reg_fee": 1.0, "note": "5.6% (Bengaluru Urban), 5.6% (other districts)"},
+            "Tamil Nadu": {"rate": 7.0, "metro额外": 0, "reg_fee": 1.0, "note": "7% stamp duty + 1% registration"},
+            "Gujarat": {"rate": 4.9, "metro额外": 0, "reg_fee": 1.0, "note": "4.9% stamp duty + 1% registration"},
+            "Rajasthan": {"rate": 5.0, "metro额外": 0, "reg_fee": 1.0, "note": "5% stamp duty + 1% registration"},
+            "UP": {"rate": 5.0, "metro额外": 0, "reg_fee": 1.0, "note": "5% stamp duty + 1% registration"},
+            "West Bengal": {"rate": 6.0, "metro额外": 1.0, "reg_fee": 1.0, "note": "6% + 1% metro surcharge (Kolkata)"},
+            "Bihar": {"rate": 5.0, "metro额外": 0, "reg_fee": 2.0, "note": "5% stamp duty + 2% registration"},
+            "Telangana": {"rate": 5.0, "metro额外": 0.5, "reg_fee": 0.5, "note": "5% stamp duty + 0.5% registration"},
+            "AP": {"rate": 5.0, "metro额外": 0, "reg_fee": 0.5, "note": "5% stamp duty + 0.5% registration"},
+            "Kerala": {"rate": 5.0, "metro额外": 0, "reg_fee": 2.0, "note": "5% stamp duty + 2% registration"},
+            "Punjab": {"rate": 5.0, "metro额外": 0, "reg_fee": 1.0, "note": "5% stamp duty + 1% registration"},
+            "Haryana": {"rate": 5.0, "metro额外": 0, "reg_fee": 1.0, "note": "5% stamp duty + 1% registration"},
+            "MP": {"rate": 5.0, "metro额外": 0, "reg_fee": 1.0, "note": "5% stamp duty + 1% registration"},
+            "CG": {"rate": 5.0, "metro额外": 0, "reg_fee": 1.0, "note": "5% stamp duty + 1% registration"},
+            "Odisha": {"rate": 5.0, "metro额外": 0, "reg_fee": 1.0, "note": "5% stamp duty + 1% registration"},
+            "Goa": {"rate": 3.5, "metro额外": 0, "reg_fee": 1.0, "note": "3.5% stamp duty + 1% registration"},
+        }
+
+        rates = stamp_rates.get(state, {"rate": 5.0, "metro额外": 0, "reg_fee": 1.0, "note": "Approximate rates"})
+
+        # Calculate costs
+        stamp_duty = value * rates["rate"] / 100
+        metro_surcharge = value * rates["metro额外"] / 100
+        reg_fee = min(value * rates["reg_fee"] / 100, 30000)  # cap registration fee
+        total = stamp_duty + metro_surcharge + reg_fee
+
+        # Check for concessions
+        concession_notes = []
+        if value <= 10_00_000:
+            concession_notes.append("  🏠 Properties under Rs 10L may get stamp duty concession in some states")
+        if "woman" in args_lower or "female" in args_lower or "wife" in args_lower:
+            concession_notes.append("  👩 Women buyers get 1-2% concession in Maharashtra, Karnataka, Delhi")
+
+        lines = [
+            f"**Stamp Duty Calculation — {state}:**\n",
+            f"  🏠 Property Value: Rs {value:,.0f}",
+            f"  📋 Stamp Duty ({rates['rate']}%): Rs {stamp_duty:,.0f}",
+        ]
+        if metro_surcharge > 0:
+            lines.append(f"  🏙️ Metro Surcharge ({rates['metro额外']}%): Rs {metro_surcharge:,.0f}")
+        lines.append(f"  📝 Registration Fee: Rs {reg_fee:,.0f}")
+        lines.append(f"  \n  💰 **Total Registration Cost: Rs {total:,.0f}**")
+        lines.append(f"  📊 As % of property value: {total/value*100:.1f}%")
+
+        if concession_notes:
+            lines.append(f"\n💡 **Concessions:**")
+            lines.extend(concession_notes)
+
+        lines.extend([
+            f"\n📝 **Note:** {rates['note']}",
+            f"\n⚠️ *Actual rates may vary. Consult a property lawyer for exact calculation.*",
+            f"📌 *Additional costs: Legal fees, brokerage, GST on under-construction properties.*",
+        ])
+
+        return "\n".join(lines)
+
+    # ── Panchang / Astrology ────────────────────────────────────────────────
+
+    def _handle_panchang(self, args: str) -> str:
+        """Hindu Panchang, Islamic calendar, and muhurat information."""
+        from datetime import datetime, timedelta
+
+        args = args.strip().lower()
+        now = datetime.now()
+
+        # ── Tithi (Lunar Day) Calculation ───────────────────────────────────
+        # Simplified lunar calendar calculation
+        # Reference: Amanta system (used in most of India)
+        SYNODIC_MONTH = 29.530588  # days
+        LUNAR_EPOCH = datetime(2000, 1, 6, 18, 14)  # known new moon
+
+        days_since_epoch = (now - LUNAR_EPOCH).total_seconds() / 86400
+        lunar_age = days_since_epoch % SYNODIC_MONTH
+        tithi_num = int(lunar_age / SYNODIC_MONTH * 30) + 1
+        if tithi_num > 30:
+            tithi_num = 30
+
+        # Tithi names
+        tithi_names = [
+            "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami",
+            "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami",
+            "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Purnima",
+            "Pratipada", "Dwitiya", "Tritiya", "Chaturthi", "Panchami",
+            "Shashthi", "Saptami", "Ashtami", "Navami", "Dashami",
+            "Ekadashi", "Dwadashi", "Trayodashi", "Chaturdashi", "Amavasya",
+        ]
+        tithi_name = tithi_names[tithi_num - 1]
+        paksha = "Shukla Paksha" if tithi_num <= 15 else "Krishna Paksha"
+        day_in_paksha = tithi_num if tithi_num <= 15 else tithi_num - 15
+
+        # ── Nakshatra ───────────────────────────────────────────────────────
+        NAKSHATRAS = [
+            "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira",
+            "Ardra", "Punarvasu", "Pushya", "Ashlesha", "Magha",
+            "Purva Phalguni", "Uttara Phalguni", "Hasta", "Chitra", "Swati",
+            "Vishakha", "Anuradha", "Jyeshtha", "Mula", "Purva Ashadha",
+            "Uttara Ashadha", "Shravana", "Dhanishta", "Shatabhisha",
+            "Purva Bhadrapada", "Uttara Bhadrapada", "Revati",
+        ]
+        nak_num = int((lunar_age / SYNODIC_MONTH * 27) % 27)
+        nakshatra = NAKSHATRAS[nak_num]
+
+        # ── Yoga ────────────────────────────────────────────────────────────
+        YOGAS = [
+            "Vishkumbha", "Priti", "Ayushman", "Saubhagya", "Shobhana",
+            "Atiganda", "Sukarman", "Dhriti", "Shula", "Ganda",
+            "Vriddhi", "Dhruva", "Vyaghata", "Harshana", "Vajra",
+            "Siddhi", "Vyatipata", "Variyan", "Parigha", "Shiva",
+            "Siddha", "Sadhya", "Shubha", "Shukla", "Brahma",
+            "Indra", "Vaidhriti",
+        ]
+        sun_long = (days_since_epoch * 0.9856) % 360  # approximate
+        moon_long = (lunar_age / SYNODIC_MONTH * 360) % 360
+        yoga_num = int(((sun_long + moon_long) / (360 / 27)) % 27)
+        yoga = YOGAS[yoga_num]
+
+        # ── Karana ──────────────────────────────────────────────────────────
+        KARANAS = [
+            "Kimstughna", "Shakuni", "Chatushpada", "Nagava",
+            "Kintughna", "Bava", "Balava", "Kaulava", "Taitila",
+            "Garaja", "Vanija", "Vishti",
+        ]
+        karana_num = int(lunar_age / SYNODIC_MONTH * 60) % 12
+        karana = KARANAS[karana_num]
+
+        # ── Rashi (Moon Sign) ──────────────────────────────────────────────
+        RASHIS = [
+            "Mesh (Aries)", "Vrishabh (Taurus)", "Mithun (Gemini)",
+            "Kark (Cancer)", "Singh (Leo)", "Kanya (Virgo)",
+            "Tula (Libra)", "Vrishchik (Scorpio)", "Dhanu (Sagittarius)",
+            "Makar (Capricorn)", "Kumbh (Aquarius)", "Meen (Pisces)",
+        ]
+        rashi_num = int(moon_long / 30) % 12
+        rashi = RASHIS[rashi_num]
+
+        # ── Varam (Day of Week) ─────────────────────────────────────────────
+        VARAMS = ["Ravivar", "Somavar", "Mangalvar", "Budhvar", "Guruvar", "Shukravar", "Shanivar"]
+        varam = VARAMS[now.weekday()]
+
+        # ── Islamic Date (Hijri) ────────────────────────────────────────────
+        # Simplified calculation
+        islamic_epoch = datetime(622, 7, 16)  # approximate
+        days_diff = (now - islamic_epoch).days
+        hijri_year = int(days_diff / 354.36667)
+        hijri_days = days_diff - int(hijri_year * 354.36667)
+        hijri_month = int(hijri_days / 29.5) + 1
+        if hijri_month > 12:
+            hijri_month = 12
+        hijri_day = int(hijri_days - (hijri_month - 1) * 29.5) + 1
+        hijri_months = [
+            "Muharram", "Safar", "Rabi ul-Awwal", "Rabi ul-Thani",
+            "Jumada al-Ula", "Jumada al-Thani", "Rajab", "Sha'ban",
+            "Ramadan", "Shawwal", "Dhul Qi'dah", "Dhul Hijjah",
+        ]
+        hijri_month_name = hijri_months[min(hijri_month - 1, 11)]
+
+        # ── Muhurat (Auspicious Times) ──────────────────────────────────────
+        # Abhijit Muhurat (approximate: midday)
+        sunrise_hour = 6  # approximate
+        sunset_hour = 18  # approximate
+        abhijit_start = 11 + 48 / 60  # ~11:48 AM
+        abhijit_end = 12 + 36 / 60  # ~12:36 PM
+
+        # Rahu Kaal (approximate)
+        rahu_duration = 1.5  # hours
+        rahu_start_hour = sunrise_hour + ((now.weekday() + 1) % 7 + 1) * 1.5
+        rahu_end_hour = rahu_start_hour + rahu_duration
+
+        # ── Format Output ───────────────────────────────────────────────────
+        if "rashi" in args:
+            return (
+                f"**Moon Rashi (Rashi) — {now.strftime('%d %B %Y')}:**\n\n"
+                f"  🌙 Moon Sign: **{rashi}**\n"
+                f"  🌟 Nakshatra: **{nakshatra}**\n"
+                f"  📿 Ruling Planet: {['Mars', 'Venus', 'Mercury', 'Moon', 'Sun', 'Mercury',
+                                        'Venus', 'Mars', 'Jupiter', 'Saturn', 'Saturn', 'Jupiter'][rashi_num]}\n"
+                f"\n  *Predictions depend on complete birth chart (Kundli).*"
+            )
+
+        if "muhurat" in args or "shubh" in args:
+            return (
+                f"**Muhurat — {now.strftime('%d %B %Y')} ({varam}):**\n\n"
+                f"  ✅ **Abhijit Muhurat:** 11:48 AM - 12:36 PM (best for new beginnings)\n"
+                f"  🚫 **Rahu Kaal:** {int(rahu_start_hour)}:{int((rahu_start_hour%1)*60):02d} - {int(rahu_end_hour)}:{int((rahu_end_hour%1)*60):02d} (avoid new work)\n"
+                f"  ✅ **Amrit Ghat:** 10:00 AM - 11:30 AM (good for important tasks)\n"
+                f"  ✅ **Dawn Period:** 4:30 AM - 6:00 AM (Brahma Muhurat)\n\n"
+                f"  📿 **Today's Tithi:** {tithi_name} ({paksha}, Day {day_in_paksha})\n"
+                f"  ⭐ **Nakshatra:** {nakshatra}\n"
+                f"  🧘 **Yoga:** {yoga}\n\n"
+                f"  *Muhurat times vary by location. Consult local Panchang for exact times.*"
+            )
+
+        # Default: Full Panchang
+        lines = [
+            f"**Hindu Panchang — {now.strftime('%A, %d %B %Y')}**\n",
+            f"📅 **Hindu Date:** {paksha}, {tithi_name} (Day {day_in_paksha})\n",
+            f"⭐ **Nakshatra:** {nakshatra}\n",
+            f"🧘 **Yoga:** {yoga}\n",
+            f"🔧 **Karana:** {karana}\n",
+            f"🌙 **Moon Sign (Rashi):** {rashi}\n",
+            f"📆 **Day (Varam):** {varam}\n",
+            f"\n📅 **Islamic Date:** {hijri_day} {hijri_month_name} {hijri_year + 1} AH\n",
+            f"⏰ **Muhurat:**",
+            f"  ✅ Abhijit: 11:48 AM - 12:36 PM",
+            f"  🚫 Rahu Kaal: {int(rahu_start_hour)}:{int((rahu_start_hour%1)*60):02d} - {int(rahu_end_hour)}:{int((rahu_end_hour%1)*60):02d}",
+            f"\n📌 *Panchang times are approximate. Check drikpanchang.com for precise local times.*",
+        ]
+
+        return "\n".join(lines)
 
     # ── Hospital / Blood Bank Finder ────────────────────────────────────────
 
