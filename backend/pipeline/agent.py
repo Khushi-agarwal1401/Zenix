@@ -197,6 +197,13 @@ TOOL_KEYWORDS = {
     "horoscope:": "panchang",
     "hijri:": "panchang",
     "islamic date:": "panchang",
+    "training data:": "training_data",
+    "fine tune:": "training_data",
+    "training report:": "training_data",
+    "export training:": "training_data",
+    "abuse stats:": "abuse",
+    "session stats:": "abuse",
+    "spam check:": "abuse",
     "weather 7 day:": "weather",
     "forecast:": "weather",
 }

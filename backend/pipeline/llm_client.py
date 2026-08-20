@@ -59,22 +59,15 @@ class LLMClient:
 
     def _load_local_model(self):
         """Load local Flan-T5 as fallback."""
-        if self._local_generator is not None:
+        if hasattr(self, '_local_model') and self._local_model is not None:
             return
         try:
             # Use small model for faster loading
             model_name = os.environ.get("LLM_MODEL", "google/flan-t5-small")
             print(f"LLMClient: Loading local model ({model_name})...")
-            from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
-            model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-            self._local_generator = pipeline(
-                "text2text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                max_length=512,
-                device=-1,
-            )
+            from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+            self._local_tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self._local_model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
             print("LLMClient: Local model loaded successfully.")
         except Exception as e:
             print(f"LLMClient: Failed to load local model: {e}")
@@ -198,20 +191,20 @@ class LLMClient:
 
     def _generate_local(self, prompt: str, system_prompt: str | None) -> str:
         try:
-            if self._local_generator is None:
+            if not hasattr(self, '_local_model') or self._local_model is None:
                 self._load_local_model()
-            if self._local_generator is None:
+            if not hasattr(self, '_local_model') or self._local_model is None:
                 return ""
 
-            # Prepend system prompt if available (Flan-T5 handles instruction prefixes well)
+            # Prepend system prompt if available
             full_prompt = prompt
             if system_prompt:
                 full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
 
-            results = self._local_generator(full_prompt)
-            if results and len(results) > 0:
-                return results[0]["generated_text"].strip()
-            return ""
+            inputs = self._local_tokenizer(full_prompt, return_tensors="pt", truncation=True, max_length=512)
+            outputs = self._local_model.generate(**inputs, max_length=512, num_beams=4, early_stopping=True)
+            generated = self._local_tokenizer.decode(outputs[0], skip_special_tokens=True)
+            return generated.strip()
         except Exception as e:
             print(f"LLMClient: Local generation error: {e}")
             return ""

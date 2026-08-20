@@ -349,6 +349,24 @@ class ToolRegistry:
             "usage": "panchang: today | panchang: muhurat | panchang: rashi | panchang: 15 august 2026",
             "handler": self._handle_panchang,
         }
+        self.tools["training_data"] = {
+            "name": "training_data",
+            "description": (
+                "Training data pipeline: generate training examples from user feedback, "
+                "export as JSONL for fine-tuning, show quality report."
+            ),
+            "usage": "training_data: report | training_data: generate | training_data: export openai | training_data: export jsonl",
+            "handler": self._handle_training_data,
+        }
+        self.tools["abuse"] = {
+            "name": "abuse",
+            "description": (
+                "Abuse prevention stats: check session health, spam detection, "
+                "injection attempts, tool rate limits."
+            ),
+            "usage": "abuse: stats | abuse: session <id> | abuse: cleanup",
+            "handler": self._handle_abuse,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -2110,6 +2128,118 @@ class ToolRegistry:
 
         except Exception as e:
             return f"Weather error: {e}"
+
+    # ── Training Data Pipeline ──────────────────────────────────────────────
+
+    def _handle_training_data(self, args: str) -> str:
+        """Generate and export training data from user feedback."""
+        args = args.strip().lower()
+        if not args:
+            args = "report"
+
+        try:
+            from .training_pipeline import training_pipeline
+
+            if "report" in args:
+                return training_pipeline.generate_report(days=30)
+
+            elif "generate" in args:
+                examples = training_pipeline.generate_training_examples(days=30)
+                if not examples:
+                    return "No training examples generated. Collect user feedback first."
+                high = sum(1 for e in examples if e["quality"] >= 0.8)
+                low = sum(1 for e in examples if e["quality"] <= 0.2)
+                return (
+                    f"**Training Data Generated:**\n"
+                    f"  Total examples: {len(examples)}\n"
+                    f"  High quality (thumbs up): {high}\n"
+                    f"  Low quality (thumbs down): {low}\n"
+                    f"  Neutral: {len(examples) - high - low}\n\n"
+                    f"Use 'training_data: export jsonl' or 'training_data: export openai' to save."
+                )
+
+            elif "export" in args:
+                examples = training_pipeline.generate_training_examples(days=30)
+                if not examples:
+                    return "No training examples to export. Generate first with 'training_data: generate'."
+
+                if "openai" in args:
+                    path = training_pipeline.export_openai_format(examples)
+                    return f"Exported {len(examples)} examples in OpenAI format to:\n{path}"
+                elif "pairs" in args or "dpo" in args:
+                    pairs = training_pipeline.export_preference_pairs(examples, "preference_pairs.jsonl")
+                    return f"Exported {len(pairs)} preference pairs for DPO/RHLF training."
+                else:
+                    path = training_pipeline.export_jsonl(examples)
+                    return f"Exported {len(examples)} examples as JSONL to:\n{path}"
+
+            else:
+                return (
+                    "**Training Data Commands:**\n"
+                    "  training_data: report — Quality report\n"
+                    "  training_data: generate — Generate examples\n"
+                    "  training_data: export jsonl — Export as JSONL\n"
+                    "  training_data: export openai — Export for OpenAI fine-tuning\n"
+                    "  training_data: export pairs — Export DPO preference pairs"
+                )
+
+        except ImportError:
+            return "Training pipeline module not available."
+        except Exception as e:
+            return f"Training pipeline error: {e}"
+
+    # ── Abuse Prevention Stats ───────────────────────────────────────────────
+
+    def _handle_abuse(self, args: str) -> str:
+        """Check abuse prevention stats and session health."""
+        args = args.strip().lower()
+        if not args:
+            args = "stats"
+
+        try:
+            from .abuse_prevention import abuse_tracker
+
+            if "stats" in args:
+                stats = abuse_tracker.stats()
+                return (
+                    f"**Abuse Prevention Stats:**\n"
+                    f"  Active sessions: {stats['active_sessions']}\n"
+                    f"  Banned sessions: {stats['banned_sessions']}\n"
+                    f"  Total warnings: {stats['total_warnings']}\n"
+                    f"  Injection attempts: {stats['total_injection_attempts']}"
+                )
+
+            elif "session" in args:
+                # Extract session ID
+                parts = args.split()
+                sid = parts[1] if len(parts) > 1 else "default"
+                stats = abuse_tracker.get_session_stats(sid)
+                return (
+                    f"**Session Stats: {sid[:12]}...**\n"
+                    f"  Warnings: {stats['warnings']}\n"
+                    f"  Injection attempts: {stats['injection_attempts']}\n"
+                    f"  Tool calls (last min): {stats['tool_calls_last_min']}\n"
+                    f"  Banned: {'Yes' if stats['is_banned'] else 'No'}\n"
+                    f"  Messages: {stats['message_count']}\n"
+                    f"  Age: {stats['age_seconds']:.0f}s"
+                )
+
+            elif "cleanup" in args:
+                cleaned = abuse_tracker.cleanup_stale()
+                return f"Cleaned up {cleaned} stale sessions."
+
+            else:
+                return (
+                    "**Abuse Prevention Commands:**\n"
+                    "  abuse: stats — Global stats\n"
+                    "  abuse: session <id> — Check session\n"
+                    "  abuse: cleanup — Remove stale sessions"
+                )
+
+        except ImportError:
+            return "Abuse prevention module not available."
+        except Exception as e:
+            return f"Abuse prevention error: {e}"
 
     # ── Telecom Recharge Plans ──────────────────────────────────────────────
 

@@ -207,6 +207,81 @@ const ROMAN_TO_DEVANAGARI: Record<string, string> = {
     'ngh': 'ङ्घ', 'nch': 'ञ्च', 'nj': 'ञ्ज',
 };
 
+/**
+ * Romanized Bengali transliteration map.
+ */
+const ROMAN_TO_BENGALI: Record<string, string> = {
+    'a': 'অ', 'aa': 'আ', 'i': 'ই', 'ii': 'ঈ', 'u': 'উ', 'uu': 'ঊ',
+    'e': 'এ', 'oi': 'ঐ', 'o': 'ও', 'ou': 'ঔ', 'am': 'অং', 'ah': 'অঃ',
+    'k': 'ক', 'kh': 'খ', 'g': 'গ', 'gh': 'ঘ', 'ng': 'ঙ',
+    'c': 'চ', 'ch': 'ছ', 'j': 'জ', 'jh': 'ঝ', 'ny': 'ঞ',
+    'tt': 'ট', 'tth': 'ঠ', 'dd': 'ড', 'ddh': 'ঢ', 'nn': 'ণ',
+    't': 'ত', 'th': 'থ', 'd': 'দ', 'dh': 'ধ', 'n': 'ন',
+    'p': 'প', 'ph': 'ফ', 'b': 'ব', 'bh': 'ভ', 'm': 'ম',
+    'y': 'য', 'r': 'র', 'l': 'ল', 'v': 'ভ', 'w': 'ভ',
+    'sh': 'শ', 'shh': 'ষ', 's': 'স', 'h': 'হ',
+    'ksh': 'ক্ষ', 'gy': 'জ্ঞ', 'tr': 'ত্র', 'dr': 'দ্র',
+};
+
+/**
+ * Romanized Gujarati transliteration map.
+ */
+const ROMAN_TO_GUJARATI: Record<string, string> = {
+    'a': 'અ', 'aa': 'આ', 'i': 'ઇ', 'ee': 'ઈ', 'u': 'ઉ', 'oo': 'ઊ',
+    'e': 'એ', 'ai': 'ઐ', 'o': 'ઓ', 'au': 'ઔ', 'am': 'અં', 'ah': 'અઃ',
+    'k': 'ક', 'kh': 'ખ', 'g': 'ગ', 'gh': 'ઘ', 'ng': 'ઙ',
+    'ch': 'ચ', 'chh': 'છ', 'j': 'જ', 'jh': 'ઝ', 'ny': 'ઞ',
+    't': 'ત', 'th': 'થ', 'd': 'દ', 'dh': 'ધ', 'n': 'ન',
+    'p': 'પ', 'ph': 'ફ', 'b': 'બ', 'bh': 'ભ', 'm': 'મ',
+    'y': 'ય', 'r': 'ર', 'l': 'લ', 'v': 'વ', 'w': 'વ',
+    'sh': 'શ', 'shh': 'ષ', 's': 'સ', 'h': 'હ',
+    'ksh': 'ક્ષ', 'gy': 'જ્ઞ', 'tr': 'ત્ર', 'dr': 'દ્ર',
+};
+
+/**
+ * Romanized Tamil transliteration map.
+ */
+const ROMAN_TO_TAMIL: Record<string, string> = {
+    'a': 'அ', 'aa': 'ஆ', 'i': 'இ', 'ii': 'ஈ', 'u': 'உ', 'uu': 'ஊ',
+    'e': 'எ', 'ee': 'ஏ', 'ai': 'ஐ', 'o': 'ஒ', 'oo': 'ஓ', 'au': 'ஔ',
+    'k': 'க', 'ng': 'ங', 'ch': 'ச', 'ny': 'ஞ', 't': 'ட', 'n': 'ண',
+    'th': 'த', 'nh': 'ந', 'p': 'ப', 'm': 'ம', 'y': 'ய', 'r': 'ர',
+    'l': 'ல', 'v': 'வ', 'z': 'ழ', 'L': 'ள', 'R': 'ற', 'n2': 'ந',
+    'sh': 'ஶ', 'shh': 'ஷ', 's': 'ஸ', 'h': 'ஹ', 'ksh': 'க்ஷ',
+};
+
+/**
+ * Romanized Telugu transliteration map.
+ */
+const ROMAN_TO_TELUGU: Record<string, string> = {
+    'a': 'అ', 'aa': 'ఆ', 'i': 'ఇ', 'ee': 'ఈ', 'u': 'ఉ', 'oo': 'ఊ',
+    'e': 'ఎ', 'ee': 'ఏ', 'ai': 'ఐ', 'o': 'ఒ', 'oo': 'ఓ', 'au': 'ఔ', 'am': 'అం', 'ah': 'అః',
+    'k': 'క', 'kh': 'ఖ', 'g': 'గ', 'gh': 'ఘ', 'ng': 'ఙ',
+    'ch': 'చ', 'chh': 'ఛ', 'j': 'జ', 'jh': 'ఝ', 'ny': 'ఞ',
+    'tt': 'ట', 'tth': 'ఠ', 'dd': 'డ', 'ddh': 'ఢ', 'nn': 'ణ',
+    't': 'త', 'th': 'థ', 'd': 'ద', 'dh': 'ధ', 'n': 'న',
+    'p': 'ప', 'ph': 'ఫ', 'b': 'బ', 'bh': 'భ', 'm': 'మ',
+    'y': 'య', 'r': 'ర', 'l': 'ల', 'v': 'వ', 'w': 'వ',
+    'sh': 'శ', 'shh': 'ష', 's': 'స', 'h': 'హ',
+    'ksh': 'క్ష', 'gy': 'జ్ఞ', 'tr': 'త్ర', 'dr': 'ద్ర',
+};
+
+/**
+ * Romanized Gurmukhi (Punjabi) transliteration map.
+ */
+const ROMAN_TO_GURMUKHI: Record<string, string> = {
+    'a': 'ਅ', 'aa': 'ਆ', 'i': 'ਇ', 'ee': 'ਈ', 'u': 'ਉ', 'oo': 'ਊ',
+    'e': 'ਏ', 'ai': 'ਐ', 'o': 'ਓ', 'au': 'ਔ', 'am': 'ਅਂ', 'ah': 'ਅਃ',
+    'k': 'ਕ', 'kh': 'ਖ', 'g': 'ਗ', 'gh': 'ਘ', 'ng': 'ਙ',
+    'ch': 'ਚ', 'chh': 'ਛ', 'j': 'ਜ', 'jh': 'ਝ', 'ny': 'ਞ',
+    'tt': 'ਟ', 'tth': 'ਠ', 'dd': 'ਡ', 'ddh': 'ਢ', 'nn': 'ਣ',
+    't': 'ਤ', 'th': 'ਥ', 'd': 'ਦ', 'dh': 'ਧ', 'n': 'ਨ',
+    'p': 'ਪ', 'ph': 'ਫ', 'b': 'ਬ', 'bh': 'ਭ', 'm': 'ਮ',
+    'y': 'ਯ', 'r': 'ਰ', 'l': 'ਲ', 'v': 'ਵ', 'w': 'ਵ',
+    'sh': 'ਸ਼', 's': 'ਸ', 'h': 'ਹ',
+    'ksh': 'ਕਸ਼', 'gy': 'ਗਯ', 'tr': 'ਤਰ', 'dr': 'ਦਰ',
+};
+
 // Common word-level Roman → Devanagari mappings (for full words)
 const COMMON_WORD_MAPPINGS: Record<string, string> = {
     'namaste': 'नमस्ते', 'namaskar': 'नमस्कार', 'shukriya': 'शुक्रिया',
@@ -235,12 +310,120 @@ const COMMON_WORD_MAPPINGS: Record<string, string> = {
     'phone': 'फ़ोन', 'paisa': 'पैसा', 'rupaye': 'रुपये',
 };
 
+// Common word mappings for Bengali
+const COMMON_WORD_MAPPINGS_BENGALI: Record<string, string> = {
+    'namaskar': 'নমস্কার', 'dhonnobad': 'ধন্যবাদ', 'kemon': 'কেমন',
+    'acho': 'আছো', 'bhalo': 'ভালো', 'ami': 'আমি', 'tumi': 'তুমি',
+    'apni': 'আপনি', 'kothay': 'কোথায়', 'ke': 'কে', 'ki': 'কী',
+    'keno': 'কেন', 'kivabe': 'কিভাবে', 'kobe': 'কবে', 'na': 'না',
+    'haa': 'হ্যাঁ', 'bhalobasha': 'ভালোবাসা', 'ma': 'মা', 'baba': 'বাবা',
+    'bhai': 'ভাই', 'bon': 'বোন', 'dada': 'দাদা', 'didi': 'দিদি',
+    'khawya': 'খাব', 'khawa': 'খাওয়া', 'jol': 'জল', 'bhat': 'ভাত',
+    'misti': 'মিষ্টি', 'cha': 'চা', 'kafe': 'কফি', 'bazaar': 'বাজার',
+    'ghor': 'ঘর', 'school': 'স্কুল', 'college': 'কলেজ', 'office': 'অফিস',
+    'gari': 'গাড়ি', 'bas': 'বাস', 'train': 'ট্রেন', 'ticket': 'টিকেট',
+};
+
+// Common word mappings for Gujarati
+const COMMON_WORD_MAPPINGS_GUJARATI: Record<string, string> = {
+    'namaste': 'નમસ્તે', 'namaskar': 'નમસ્કાર', 'aabhar': 'આભાર',
+    'kem': 'કેમ', 'cho': 'છો', 'hu': 'હું', 'tame': 'તમે',
+    'aap': 'આપ', 'kya': 'ક્યાં', 'kau': 'કૌન', 'kyare': 'ક્યારે',
+    'shu': 'શું', 'evu': 'એવું', 'hu': 'હું', 'na': 'ના', 'haa': 'હા',
+    'ma': 'માતા', 'bapuji': 'બાપુજી', 'bhai': 'ભાઈ', 'ben': 'બહેન',
+    'khavu': 'ખાવું', 'pani': 'પાણી', 'bhat': 'ભાત', 'mithu': 'મીઠું',
+    'cha': 'ચા', 'coffee': 'કોફી', 'bazar': 'બાઝાર', 'ghar': 'ઘર',
+    'school': 'સ્કૂલ', 'college': 'કોલેજ', 'office': 'ઑફિસ',
+};
+
+// Common word mappings for Tamil
+const COMMON_WORD_MAPPINGS_TAMIL: Record<string, string> = {
+    'vanakkam': 'வணக்கம்', 'nandri': 'நன்றி', 'epdi': 'எப்படி',
+    'irukku': 'இருக்கு', 'illai': 'இல்லை', 'naan': 'நான்', 'ni': 'நீ',
+    'neenga': 'நீங்கள்', 'enga': 'எங்கே', 'yaar': 'யார்', 'en': 'என்',
+    'enna': 'என்ன', 'eppadi': 'எப்படி', 'eppo': 'எப்போது', 'illa': 'இல்லை',
+    'amma': 'அம்மா', 'appa': 'அப்பா', 'anna': 'அண்ணா', 'akka': 'அக்கா',
+    'sapidu': 'சாப்பிடு', 'thanni': 'தண்ணீர்', 'saadam': 'சாதம்',
+    'chai': 'சாய்', 'kaapi': 'காபி', 'kadai': 'கடை', 'veedu': 'வீடு',
+    'school': 'ஸ்கூல்', 'college': 'காலேஜ்', 'office': 'ஆபіс',
+};
+
+// Common word mappings for Telugu
+const COMMON_WORD_MAPPINGS_TELUGU: Record<string, string> = {
+    'namaskaram': 'నమస్కారం', 'dhanyavadhamulu': 'ధన్యవాదములు',
+    'ela': 'ఎలా', 'unnavu': 'ఉన్నావు', 'nenu': 'నేను', 'nuvvu': 'నువ్వు',
+    'meeru': 'మీరు', 'ekkada': 'ఎక్కడ', 'evvaru': 'ఎవరు', 'entha': 'ఎంత',
+    'enduku': 'ఎందుకు', 'ela': 'ఎలా', 'eppudu': 'ఎప్పుడు', 'ledu': 'లేదు',
+    'amma': 'అమ్మ', 'nanna': 'నన్న', 'anna': 'అన్న', 'akka': 'అక్క',
+    'tinu': 'తిను', 'neellu': 'నీళ్ళు', 'annam': 'అన్నం',
+    'chai': 'చాయ్', 'coffee': 'కాఫీ', 'angadi': 'అంగడి', 'illu': 'ఇల్లు',
+    'school': 'స్కూల్', 'college': 'కాలేజ్', 'office': 'ఆఫీసు',
+};
+
+// Common word mappings for Gurmukhi
+const COMMON_WORD_MAPPINGS_GURMUKHI: Record<string, string> = {
+    'sat sri akal': 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ', 'shukriya': 'ਸ਼ੁਕਰੀਆ',
+    'ki haal': 'ਕੀ ਹਾਲ', 'main': 'ਮੈਂ', 'tusi': 'ਤੁਸੀਂ',
+    'kithon': 'ਕਿੱਥੋਂ', 'kaun': 'ਕੌਣ', 'keha': 'ਕੇਹਾ', 'kiu': 'ਕਿਉਂ',
+    'kiven': 'ਕਿਵੇਂ', 'kadon': 'ਕਦੋਂ', 'nahi': 'ਨਹੀਂ', 'haan': 'ਹਾਂ',
+    'ma': 'ਮਾਂ', 'bapu': 'ਬਾਪੂ', 'bhai': 'ਭਾਈ', 'bhain': 'ਭੈਣ',
+    'khana': 'ਖਾਣਾ', 'pani': 'ਪਾਣੀ', 'roti': 'ਰੋਟੀ', 'mitha': 'ਮਿੱਠਾ',
+    'chai': 'ਚਾਹ', 'coffee': 'ਕੌਫੀ', 'bazaar': 'ਬਾਜ਼ਾਰ', 'ghar': 'ਘਰ',
+    'school': 'ਸਕੂਲ', 'college': 'ਕਾਲਜ', 'office': 'ਦਫ਼ਤਰ',
+};
+
 /**
  * Transliterates Romanized Indic text to Devanagari script.
  * Handles word-level lookups first, then falls back to character-level mapping.
  */
 export function transliterateToDevanagari(text: string): string {
-    const words = text.split(/(\s+)/);  // Preserve whitespace
+    return transliterateGeneric(text, ROMAN_TO_DEVANAGARI, COMMON_WORD_MAPPINGS);
+}
+
+/**
+ * Transliterates Romanized text to Bengali script.
+ */
+export function transliterateToBengali(text: string): string {
+    return transliterateGeneric(text, ROMAN_TO_BENGALI, COMMON_WORD_MAPPINGS_BENGALI);
+}
+
+/**
+ * Transliterates Romanized text to Gujarati script.
+ */
+export function transliterateToGujarati(text: string): string {
+    return transliterateGeneric(text, ROMAN_TO_GUJARATI, COMMON_WORD_MAPPINGS_GUJARATI);
+}
+
+/**
+ * Transliterates Romanized text to Tamil script.
+ */
+export function transliterateToTamil(text: string): string {
+    return transliterateGeneric(text, ROMAN_TO_TAMIL, COMMON_WORD_MAPPINGS_TAMIL);
+}
+
+/**
+ * Transliterates Romanized text to Telugu script.
+ */
+export function transliterateToTelugu(text: string): string {
+    return transliterateGeneric(text, ROMAN_TO_TELUGU, COMMON_WORD_MAPPINGS_TELUGU);
+}
+
+/**
+ * Transliterates Romanized text to Gurmukhi script.
+ */
+export function transliterateToGurmukhi(text: string): string {
+    return transliterateGeneric(text, ROMAN_TO_GURMUKHI, COMMON_WORD_MAPPINGS_GURMUKHI);
+}
+
+/**
+ * Generic transliteration function using provided maps.
+ */
+function transliterateGeneric(
+    text: string,
+    charMap: Record<string, string>,
+    wordMap: Record<string, string>
+): string {
+    const words = text.split(/(\s+)/);
     const result: string[] = [];
 
     for (const word of words) {
@@ -251,29 +434,25 @@ export function transliterateToDevanagari(text: string): string {
 
         const lower = word.toLowerCase();
 
-        // Try full word lookup first
-        if (COMMON_WORD_MAPPINGS[lower]) {
-            result.push(COMMON_WORD_MAPPINGS[lower]);
+        if (wordMap[lower]) {
+            result.push(wordMap[lower]);
             continue;
         }
 
-        // Character-level transliteration
         let remaining = lower;
         let output = '';
         while (remaining.length > 0) {
             let matched = false;
-            // Try longest match first (3, then 2, then 1 chars)
             for (const len of [3, 2, 1]) {
                 const slice = remaining.slice(0, len);
-                if (ROMAN_TO_DEVANAGARI[slice]) {
-                    output += ROMAN_TO_DEVANAGARI[slice];
+                if (charMap[slice]) {
+                    output += charMap[slice];
                     remaining = remaining.slice(len);
                     matched = true;
                     break;
                 }
             }
             if (!matched) {
-                // Keep original character
                 output += remaining[0];
                 remaining = remaining.slice(1);
             }
@@ -332,11 +511,24 @@ export class LanguageEngine {
 
     /**
      * Transliterates text from one script to another.
-     * Currently supports Roman → Devanagari.
+     * Supports Roman → Devanagari, Bengali, Gujarati, Tamil, Telugu, Gurmukhi.
      */
     static transliterate(text: string, config: TransliterationConfig): string {
-        if (config.sourceScript === 'Latn' && config.targetScript === 'Deva') {
-            return transliterateToDevanagari(text);
+        if (config.sourceScript === 'Latn') {
+            switch (config.targetScript) {
+                case 'Deva':
+                    return transliterateToDevanagari(text);
+                case 'Beng':
+                    return transliterateToBengali(text);
+                case 'Gujr':
+                    return transliterateToGujarati(text);
+                case 'Taml':
+                    return transliterateToTamil(text);
+                case 'Telu':
+                    return transliterateToTelugu(text);
+                case 'Guru':
+                    return transliterateToGurmukhi(text);
+            }
         }
         // For unsupported pairs, return text unchanged
         console.warn(`Transliteration from ${config.sourceScript} to ${config.targetScript} not yet supported.`);
