@@ -17,6 +17,25 @@ from datetime import datetime
 from .speech import INDIAN_LANGUAGES
 
 
+# Shared SSL context for HTTP requests
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
+
+
+def _http_get(url: str, timeout: int = 10, headers: Dict[str, str] = None) -> Optional[dict]:
+    """Helper: GET a URL and return parsed JSON, or None on failure."""
+    hdrs = {"User-Agent": "Zenix/1.0"}
+    if headers:
+        hdrs.update(headers)
+    try:
+        req = urllib.request.Request(url, headers=hdrs)
+        with urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
 class ToolRegistry:
     """
     Registry of tools available to the Agent.
@@ -230,6 +249,51 @@ class ToolRegistry:
             "description": "Crop advisory: seasonal advice, mandi prices, farming guidance for Indian farmers.",
             "usage": "crop: season | crop: price rice | crop: advisory",
             "handler": self._handle_crop,
+        }
+        self.tools["petrol"] = {
+            "name": "petrol",
+            "description": "Live petrol/diesel prices for Indian cities. Fetches from mypetrolprice.com.",
+            "usage": "petrol: Mumbai | petrol: Delhi | petrol: all",
+            "handler": self._handle_petrol,
+        }
+        self.tools["gold"] = {
+            "name": "gold",
+            "description": "Live gold and silver prices in India. Fetches from metals.live API.",
+            "usage": "gold: today | gold: rate",
+            "handler": self._handle_gold,
+        }
+        self.tools["aqi"] = {
+            "name": "aqi",
+            "description": "Live Air Quality Index for Indian cities. Fetches from Open-Meteo API.",
+            "usage": "aqi: Delhi | aqi: Mumbai | aqi: all",
+            "handler": self._handle_aqi,
+        }
+        self.tools["ifsc"] = {
+            "name": "ifsc",
+            "description": (
+                "IFSC code lookup: find bank name, branch, address, city, state from IFSC code. "
+                "Also supports bank name search. Uses Razorpay IFSC API (free, no key)."
+            ),
+            "usage": "ifsc: SBIN0001234 | ifsc: search State Bank of India Delhi",
+            "handler": self._handle_ifsc,
+        }
+        self.tools["emi"] = {
+            "name": "emi",
+            "description": (
+                "EMI calculator: calculate EMI for home loan, car loan, personal loan. "
+                "Also calculates total interest and total payment."
+            ),
+            "usage": "emi: 5000000 for 20 years at 8.5% | emi: 800000 for 5 years at 9%",
+            "handler": self._handle_emi,
+        }
+        self.tools["tax"] = {
+            "name": "tax",
+            "description": (
+                "Income tax calculator: compare old vs new regime for FY 2025-26. "
+                "Enter annual income to see tax under both regimes with deductions."
+            ),
+            "usage": "tax: 1200000 | tax: income 1500000 with 80c 150000 hra 100000",
+            "handler": self._handle_tax,
         }
 
     # ── Sample Database ───────────────────────────────────────────────────────
@@ -1992,6 +2056,286 @@ class ToolRegistry:
 
         except Exception as e:
             return f"Weather error: {e}"
+
+    # ── Petrol / Diesel Prices ──────────────────────────────────────────────
+
+    def _handle_petrol(self, args: str) -> str:
+        """Get live petrol/diesel prices."""
+        try:
+            from .realtime import petrol_service
+            return petrol_service.get_price(args.strip())
+        except ImportError:
+            return "Petrol price service not available."
+        except Exception as e:
+            return f"Petrol price error: {e}"
+
+    # ── Gold / Silver Prices ─────────────────────────────────────────────────
+
+    def _handle_gold(self, args: str) -> str:
+        """Get live gold/silver prices."""
+        try:
+            from .realtime import gold_service
+            return gold_service.get_price()
+        except ImportError:
+            return "Gold price service not available."
+        except Exception as e:
+            return f"Gold price error: {e}"
+
+    # ── Air Quality Index ────────────────────────────────────────────────────
+
+    def _handle_aqi(self, args: str) -> str:
+        """Get live AQI data."""
+        try:
+            from .realtime import aqi_service
+            return aqi_service.get_aqi(args.strip())
+        except ImportError:
+            return "AQI service not available."
+        except Exception as e:
+            return f"AQI error: {e}"
+
+    # ── IFSC Code Lookup ─────────────────────────────────────────────────────
+
+    def _handle_ifsc(self, args: str) -> str:
+        """Look up IFSC code or search banks using Razorpay IFSC API (free, no key)."""
+        args = args.strip()
+        if not args:
+            return "Error: Provide an IFSC code. Example: ifsc: SBIN0001234"
+
+        # Check if it looks like an IFSC code (11 chars, starts with bank code)
+        is_ifsc = bool(re.match(r'^[A-Z]{4}0[A-Z0-9]{6}$', args.upper()))
+
+        if is_ifsc:
+            url = f"https://ifsc.razorpay.com/{args.upper()}"
+            data = _http_get(url, timeout=8)
+            if data and not data.get("error"):
+                lines = [
+                    f"**IFSC: {data.get('IFSC', args.upper())}**\n",
+                    f"🏦 Bank: {data.get('BANK', 'N/A')}",
+                    f"🏢 Branch: {data.get('BRANCH', 'N/A')}",
+                    f"📍 Address: {data.get('ADDRESS', 'N/A')}",
+                    f"🌆 City: {data.get('CITY', 'N/A')}",
+                    f"🗺️ District: {data.get('DISTRICT', 'N/A')}",
+                    f"🏛️ State: {data.get('STATE', 'N/A')}",
+                    f"📞 Contact: {data.get('CONTACT', 'N/A')}",
+                    f"📮 MICR: {data.get('MICR', 'N/A')}",
+                    f"🔄 NEFT: {'✅' if data.get('NEFT') else '❌'} | "
+                    f"RTGS: {'✅' if data.get('RTGS') else '❌'} | "
+                    f"IMPS: {'✅' if data.get('IMPS') else '❌'} | "
+                    f"UPI: {'✅' if data.get('UPI') else '❌'}",
+                ]
+                return "\n".join(lines)
+            else:
+                return f"IFSC code '{args.upper()}' not found. Check the code and try again."
+
+        # Not an IFSC code — try bank search
+        url = f"https://ifsc.razorpay.com/{args.upper()}"
+        data = _http_get(url, timeout=8)
+        if data and not data.get("error"):
+            lines = [
+                f"**IFSC: {data.get('IFSC', args.upper())}**\n",
+                f"🏦 Bank: {data.get('BANK', 'N/A')}",
+                f"🏢 Branch: {data.get('BRANCH', 'N/A')}",
+                f"📍 Address: {data.get('ADDRESS', 'N/A')}",
+                f"🌆 City: {data.get('CITY', 'N/A')}",
+                f"🏛️ State: {data.get('STATE', 'N/A')}",
+            ]
+            return "\n".join(lines)
+
+        return (
+            f"Could not find IFSC for '{args}'.\n"
+            f"Please provide a valid 11-character IFSC code (e.g., SBIN0001234).\n"
+            f"Find IFSC at: bankbazaar.com/ifsc-code or google 'IFSC code <bank> <branch>'."
+        )
+
+    # ── EMI Calculator ───────────────────────────────────────────────────────
+
+    def _handle_emi(self, args: str) -> str:
+        """Calculate EMI for loans."""
+        args = args.strip()
+        if not args:
+            return "Usage: emi: 5000000 for 20 years at 8.5%"
+
+        # Parse: <amount> for <years> years at <rate>%
+        match = re.match(
+            r'([\d,]+(?:\.\d+)?)\s+(?:for\s+)?(\d+)\s+years?\s+(?:at\s+)?(\d+(?:\.\d+)?)%?',
+            args, re.IGNORECASE
+        )
+        if not match:
+            return (
+                "Error: Could not parse. Use format:\n"
+                "emi: <loan_amount> for <years> years at <interest_rate>%\n"
+                "Example: emi: 5000000 for 20 years at 8.5%"
+            )
+
+        principal = float(match.group(1).replace(',', ''))
+        years = int(match.group(2))
+        annual_rate = float(match.group(3))
+        months = years * 12
+        monthly_rate = annual_rate / 100 / 12
+
+        if monthly_rate == 0:
+            emi = principal / months
+        else:
+            emi = principal * monthly_rate * (1 + monthly_rate) ** months / ((1 + monthly_rate) ** months - 1)
+
+        total_payment = emi * months
+        total_interest = total_payment - principal
+        interest_ratio = (total_interest / principal * 100) if principal else 0
+
+        return (
+            f"**EMI Calculation:**\n"
+            f"  💰 Loan Amount: Rs {principal:,.0f}\n"
+            f"  📅 Duration: {years} years ({months} months)\n"
+            f"  📈 Interest Rate: {annual_rate}% p.a.\n"
+            f"\n"
+            f"  ✅ **Monthly EMI: Rs {emi:,.0f}**\n"
+            f"  💵 Total Payment: Rs {total_payment:,.0f}\n"
+            f"  📊 Total Interest: Rs {total_interest:,.0f} ({interest_ratio:.1f}% of principal)\n"
+            f"\n"
+            f"**Amortization Summary:**\n"
+            f"  Year 1 Interest: ~Rs {principal * annual_rate / 100:,.0f}\n"
+            f"  Year {years} Interest: ~Rs {total_interest * 0.1:,.0f} (declines over time)\n"
+            f"\n"
+            f"*Tip: Prepaying even 1 extra EMI/year can save lakhs in interest!*"
+        )
+
+    # ── Income Tax Calculator ────────────────────────────────────────────────
+
+    def _handle_tax(self, args: str) -> str:
+        """Calculate income tax under old and new regime (FY 2025-26)."""
+        args = args.strip()
+        if not args:
+            return "Usage: tax: 1200000 | tax: income 1500000 with 80c 150000 hra 100000"
+
+        # Parse income
+        income = 0
+        deductions_80c = 150000  # default max 80C
+        hra = 0
+        other_deductions = 0
+
+        # Try JSON-like parse
+        try:
+            data = json.loads(args)
+            if isinstance(data, dict):
+                income = float(data.get("income", data.get("amount", 0)))
+                deductions_80c = float(data.get("80c", 150000))
+                hra = float(data.get("hra", 0))
+                other_deductions = float(data.get("other", data.get("80d", 25000)))
+            elif isinstance(data, (int, float)):
+                income = float(data)
+            else:
+                raise ValueError
+        except (json.JSONDecodeError, ValueError, TypeError):
+            # Try regex parse
+            income_match = re.search(r'([\d,]+)', args)
+            if income_match:
+                income = float(income_match.group(1).replace(',', ''))
+
+            c80_match = re.search(r'80c\s+([\d,]+)', args, re.IGNORECASE)
+            if c80_match:
+                deductions_80c = float(c80_match.group(1).replace(',', ''))
+
+            hra_match = re.search(r'hra\s+([\d,]+)', args, re.IGNORECASE)
+            if hra_match:
+                hra = float(hra_match.group(1).replace(',', ''))
+
+        if income <= 0:
+            return "Please provide annual income. Example: tax: 1200000"
+
+        # ── New Tax Regime (FY 2025-26 default, Section 115BAC) ──
+        new_slabs = [
+            (400000, 0.0),
+            (800000, 0.05),
+            (1200000, 0.10),
+            (1600000, 0.15),
+            (2000000, 0.20),
+            (2400000, 0.25),
+            (float('inf'), 0.30),
+        ]
+
+        def _calc_regime_tax(taxable: float, slabs: list) -> float:
+            tax = 0
+            prev_limit = 0
+            for limit, rate in slabs:
+                if taxable <= prev_limit:
+                    break
+                bracket = min(taxable, limit) - prev_limit
+                tax += bracket * rate
+                prev_limit = limit
+            return tax
+
+        # New regime: standard deduction ₹75,000, no other deductions
+        new_taxable = max(0, income - 75000)
+        new_tax = _calc_regime_tax(new_taxable, new_slabs)
+        # New regime rebate u/s 87A: if taxable income ≤ ₹12,00,000 → tax = 0
+        if new_taxable <= 1200000:
+            new_tax = 0
+        # Cess: 4%
+        new_tax_with_cess = new_tax * 1.04
+
+        # ── Old Tax Regime ──
+        old_slabs = [
+            (250000, 0.0),
+            (500000, 0.05),
+            (1000000, 0.20),
+            (float('inf'), 0.30),
+        ]
+        # For senior citizens (60-80): ₹3L exemption; super senior (80+): ₹5L
+        # Using standard 2.5L for simplicity
+
+        # Standard deduction: ₹50,000
+        total_deductions = 50000 + deductions_80c + hra + other_deductions
+        old_taxable = max(0, income - total_deductions)
+        old_tax = _calc_regime_tax(old_taxable, old_slabs)
+        # Old regime rebate u/s 87A: if taxable ≤ ₹5,00,000 → tax = 0
+        if old_taxable <= 500000:
+            old_tax = 0
+        # Cess: 4%
+        old_tax_with_cess = old_tax * 1.04
+
+        # ── Comparison ──
+        savings = old_tax_with_cess - new_tax_with_cess
+        better = "New Regime" if new_tax_with_cess < old_tax_with_cess else "Old Regime"
+
+        lines = [
+            f"**Income Tax Calculation (FY 2025-26):**\n",
+            f"  💰 Gross Income: Rs {income:,.0f}\n",
+            f"  📊 **NEW REGIME (Default, u/s 115BAC):**",
+            f"    Standard Deduction: Rs 75,000",
+            f"    Taxable Income: Rs {new_taxable:,.0f}",
+            f"    Tax: Rs {new_tax:,.0f}",
+            f"    + Health & Edu Cess (4%): Rs {new_tax * 0.04:,.0f}",
+            f"    **Total Tax: Rs {new_tax_with_cess:,.0f}**\n",
+            f"  📊 **OLD REGIME:**",
+            f"    Standard Deduction: Rs 50,000",
+            f"    80C Deductions: Rs {deductions_80c:,.0f}",
+            f"    HRA Exemption: Rs {hra:,.0f}",
+            f"    Other Deductions: Rs {other_deductions:,.0f}",
+            f"    Total Deductions: Rs {total_deductions:,.0f}",
+            f"    Taxable Income: Rs {old_taxable:,.0f}",
+            f"    Tax: Rs {old_tax:,.0f}",
+            f"    + Health & Edu Cess (4%): Rs {old_tax * 0.04:,.0f}",
+            f"    **Total Tax: Rs {old_tax_with_cess:,.0f}**\n",
+        ]
+
+        if savings > 0:
+            lines.extend([
+                f"  ✅ **Better: {better}** (saves Rs {savings:,.0f})",
+            ])
+        elif savings < 0:
+            lines.extend([
+                f"  ✅ **Better: {better}** (saves Rs {-savings:,.0f})",
+            ])
+        else:
+            lines.append(f"  ⚖️ Both regimes result in equal tax.")
+
+        lines.extend([
+            f"\n  💡 Tip: New regime has lower rates but no deductions. "
+            f"Old regime is better if you have high deductions (80C + HRA + 80D > ₹2L).",
+            f"\n  📝 *Calculations are indicative. Consult a CA for exact filing.*",
+        ])
+
+        return "\n".join(lines)
 
     # ── Registry API ──────────────────────────────────────────────────────────
 

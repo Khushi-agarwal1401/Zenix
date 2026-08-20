@@ -1,6 +1,44 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Sparkles, Mic, MicOff, Globe } from 'lucide-react';
+import { Send, Sparkles, Mic, MicOff } from 'lucide-react';
 import clsx from 'clsx';
+
+interface SpeechRecognitionEvent {
+    resultIndex: number;
+    results: {
+        length: number;
+        [index: number]: {
+            isFinal: boolean;
+            [index: number]: {
+                transcript: string;
+            };
+        };
+    };
+}
+
+interface SpeechRecognitionErrorEvent {
+    error: string;
+}
+
+interface ISpeechRecognition {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    maxAlternatives: number;
+    start(): void;
+    stop(): void;
+    onstart: (() => void) | null;
+    onresult: ((event: SpeechRecognitionEvent) => void) | null;
+    onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+    onend: (() => void) | null;
+}
+
+declare global {
+    interface Window {
+        SpeechRecognition?: { new (): ISpeechRecognition };
+        webkitSpeechRecognition?: { new (): ISpeechRecognition };
+    }
+}
+
 
 // Supported Indian languages for speech recognition
 const SPEECH_LANGUAGES = [
@@ -27,17 +65,16 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
     const [isRecording, setIsRecording] = useState(false);
     const [speechLanguage, setSpeechLanguage] = useState('hi-IN');
     const [showLangPicker, setShowLangPicker] = useState(false);
-    const [speechSupported, setSpeechSupported] = useState(false);
+    const [speechSupported] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    });
     const [interimTranscript, setInterimTranscript] = useState('');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const recognitionRef = useRef<any>(null);
+    const recognitionRef = useRef<ISpeechRecognition | null>(null);
     const langPickerRef = useRef<HTMLDivElement>(null);
 
-    // Check if Web Speech API is supported
-    useEffect(() => {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        setSpeechSupported(!!SpeechRecognition);
-    }, []);
+    // Speech API support is checked during state initialization
 
     // Close language picker when clicking outside
     useEffect(() => {
@@ -59,7 +96,7 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
     }, [input]);
 
     const startRecording = useCallback(() => {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
             alert('Speech recognition is not supported in your browser. Please use Chrome or Edge.');
             return;
@@ -76,7 +113,7 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
             setInterimTranscript('');
         };
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
             let interim = '';
             let final = '';
 
@@ -97,7 +134,7 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
             }
         };
 
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
             console.error('Speech recognition error:', event.error);
             setIsRecording(false);
             setInterimTranscript('');
