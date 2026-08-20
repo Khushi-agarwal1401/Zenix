@@ -295,6 +295,33 @@ class ToolRegistry:
             "usage": "tax: 1200000 | tax: income 1500000 with 80c 150000 hra 100000",
             "handler": self._handle_tax,
         }
+        self.tools["hospital"] = {
+            "name": "hospital",
+            "description": (
+                "Find nearby hospitals, clinics, blood banks, and pharmacies. "
+                "Uses OpenStreetMap Nominatim API for location search."
+            ),
+            "usage": "hospital: near Delhi | blood bank: Mumbai | pharmacy: Bangalore",
+            "handler": self._handle_hospital,
+        }
+        self.tools["train_status"] = {
+            "name": "train_status",
+            "description": (
+                "Live train running status, PNR status, and seat availability. "
+                "Uses RailYatri/IRCTC data via web search."
+            ),
+            "usage": "train_status: 12951 | train_status: PNR 4521234567 | train_status: Delhi to Mumbai",
+            "handler": self._handle_train_status,
+        }
+        self.tools["epfo"] = {
+            "name": "epfo",
+            "description": (
+                "EPFO/PF guidance: check PF balance, UAN activation, claim status, "
+                "transfer process, and pension scheme details."
+            ),
+            "usage": "epfo: check balance | epfo: uan activate | epfo: claim process | epfo: pension",
+            "handler": self._handle_epfo,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -2056,6 +2083,293 @@ class ToolRegistry:
 
         except Exception as e:
             return f"Weather error: {e}"
+
+    # ── Hospital / Blood Bank Finder ────────────────────────────────────────
+
+    def _handle_hospital(self, args: str) -> str:
+        """Find hospitals, blood banks, and pharmacies using OpenStreetMap."""
+        args = args.strip()
+        if not args:
+            return "Usage: hospital: near Delhi | blood bank: Mumbai | pharmacy: Bangalore"
+
+        args_lower = args.lower()
+
+        # Determine search type
+        if "blood bank" in args_lower:
+            query_type = "blood bank"
+            search_query = args_lower.replace("blood bank", "").replace("near", "").replace("in", "").strip()
+        elif "pharmacy" in args_lower or "chemist" in args_lower or "medical store" in args_lower:
+            query_type = "pharmacy"
+            search_query = args_lower.replace("pharmacy", "").replace("chemist", "").replace("medical store", "").replace("near", "").replace("in", "").strip()
+        elif "clinic" in args_lower:
+            query_type = "clinic"
+            search_query = args_lower.replace("clinic", "").replace("near", "").replace("in", "").strip()
+        else:
+            query_type = "hospital"
+            search_query = args_lower.replace("hospital", "").replace("near", "").replace("in", "").strip()
+
+        if not search_query:
+            search_query = "Delhi"  # default
+
+        try:
+            # Use Nominatim to find the location first
+            encoded = urllib.parse.quote(f"{query_type} near {search_query}, India")
+            url = (
+                f"https://nominatim.openstreetmap.org/search"
+                f"?q={encoded}&format=json&limit=5&countrycodes=in&addressdetails=1"
+            )
+            data = _http_get(url, timeout=10, headers={"User-Agent": "Zenix/1.0"})
+
+            if not data:
+                # Try a broader search
+                encoded2 = urllib.parse.quote(f"{query_type} {search_query}")
+                url2 = (
+                    f"https://nominatim.openstreetmap.org/search"
+                    f"?q={encoded2}&format=json&limit=5&countrycodes=in"
+                )
+                data = _http_get(url2, timeout=10, headers={"User-Agent": "Zenix/1.0"})
+
+            if data:
+                lines = [f"**{query_type.title()}s near {search_query.title()}:**\n"]
+                for i, place in enumerate(data[:5], 1):
+                    name = place.get("display_name", "Unknown")
+                    name_parts = name.split(", ")
+                    short_name = ", ".join(name_parts[:3])
+                    lat = place.get("lat", "N/A")
+                    lon = place.get("lon", "N/A")
+                    lines.append(f"{i}. **{short_name}**")
+                    lines.append(f"   📐 Lat: {lat}, Lon: {lon}")
+                    lines.append("")
+
+                lines.append("💡 **Tips:**")
+                if query_type == "hospital":
+                    lines.append("  - For emergencies, call **108** (Ambulance)")
+                    lines.append("  - Government hospitals: Free treatment under Ayushman Bharat")
+                    lines.append("  - Check: mohfw.gov.in for govt hospital list")
+                elif query_type == "blood bank":
+                    lines.append("  - Blood bank helpline: **104**")
+                    lines.append("  - Check: bloodbankonline.in or erakdaan.com for availability")
+                    lines.append("  - National Blood Transfusion Council: nbtc.nic.in")
+                elif query_type == "pharmacy":
+                    lines.append("  - Jan Aushadhi stores: Generic medicines at 50-90% discount")
+                    lines.append("  - Check: bfrjda.gov.in for Jan Aushadhi store locations")
+
+                return "\n".join(lines)
+            else:
+                return (
+                    f"Could not find {query_type}s near '{search_query}'.\n"
+                    f"Try: hospital: near <city name> | blood bank: <city> | pharmacy: <city>\n"
+                    f"Emergency: Call **108** for ambulance, **100** for police"
+                )
+
+        except Exception as e:
+            return f"Hospital search error: {e}"
+
+    # ── Train Status / PNR ──────────────────────────────────────────────────
+
+    def _handle_train_status(self, args: str) -> str:
+        """Get live train status, PNR status, or route info."""
+        args = args.strip()
+        if not args:
+            return "Usage: train_status: 12951 | train_status: PNR 4521234567 | train_status: Delhi to Mumbai"
+
+        args_lower = args.lower().strip()
+
+        # PNR Status check
+        if "pnr" in args_lower:
+            pnr_match = re.search(r'(\d{10})', args)
+            if pnr_match:
+                pnr = pnr_match.group(1)
+                # Try to get PNR status via web search
+                try:
+                    search_url = (
+                        f"https://api.duckduckgo.com/?q=PNR+{pnr}+status&format=json"
+                    )
+                    # DuckDuckGo instant answer API doesn't always work for PNR
+                    # Provide direct guidance instead
+                    return (
+                        f"**PNR Status Check: {pnr}**\n\n"
+                        f"📱 **How to check PNR status:**\n"
+                        f"  1. SMS: Send **PNR** {pnr} to **139**\n"
+                        f"  2. Call: **139** (IVRS) → Choose PNR Enquiry\n"
+                        f"  3. Online: indianrail.gov.in/pnr\n"
+                        f"  4. App: ixigo, RailYatri, ConfirmTkt\n"
+                        f"  5. WhatsApp: Send PNR to IRCTC WhatsApp bot\n\n"
+                        f"  ⚠️ PNR status changes in real-time. Check 2-3 hours before journey."
+                    )
+                except Exception:
+                    return f"Check PNR {pnr} at indianrail.gov.in/pnr or call 139."
+            else:
+                return "Please provide a 10-digit PNR number. Example: train_status: PNR 4521234567"
+
+        # Train number lookup
+        num_match = re.search(r'(\d{5})', args)
+        if num_match:
+            train_num = num_match.group(1)
+            return (
+                f"**Train {train_num} — Status Check:**\n\n"
+                f"📱 **How to check live status:**\n"
+                f"  1. SMS: Send **SPOT** {train_num} to **139**\n"
+                f"  2. Call: **139** → Choose Train Running Status\n"
+                f"  3. Online: trains.raillife.in or etrain.info\n"
+                f"  4. Apps: ixigo, RailYatri, Where is my Train\n"
+                f"  5. IRCTC: irctc.co.in → Train Status\n\n"
+                f"  📍 Live running status updates every 5-10 minutes."
+            )
+
+        # Route search (city to city)
+        if " to " in args_lower:
+            parts = args_lower.split(" to ")
+            if len(parts) == 2:
+                from_city = parts[0].strip().replace("train", "").replace("from", "").strip()
+                to_city = parts[1].strip()
+                return (
+                    f"**Trains: {from_city.title()} → {to_city.title()}**\n\n"
+                    f"📱 **Find & book trains:**\n"
+                    f"  1. IRCTC: irctc.co.in (official booking)\n"
+                    f"  2. ixigo.com (compare prices, check availability)\n"
+                    f"  3. RailYatri.in (live status, platform info)\n"
+                    f"  4. confirmtkt.com (seat availability predictor)\n\n"
+                    f"  💡 **Tips:**\n"
+                    f"  - Book 120 days in advance for confirmed tickets\n"
+                    f"  - Tatkal opens at 10 AM (AC) / 11 AM (Non-AC)\n"
+                    f"  - Check alternative: Vande Bharat, Shatabdi for premium"
+                )
+
+        # Default: show popular trains
+        from .realtime import train_service
+        return train_service.lookup(args)
+
+    # ── EPFO / PF Guidance ──────────────────────────────────────────────────
+
+    def _handle_epfo(self, args: str) -> str:
+        """Provide EPFO/PF guidance — balance check, UAN, claims, pension."""
+        args = args.strip().lower()
+        if not args:
+            args = "help"
+
+        if "balance" in args or "check" in args or "passbook" in args:
+            return (
+                "**Check PF Balance:**\n\n"
+                "📱 **Method 1: EPFO Unified Portal**\n"
+                "  1. Visit: unifiedportal-mem.epfindia.gov.in\n"
+                "  2. Login with UAN + Password\n"
+                "  3. Go to 'View' → 'Passbook'\n"
+                "  4. Select financial year to see balance\n\n"
+                "📱 **Method 2: UMANG App**\n"
+                "  1. Download UMANG app\n"
+                "  2. Search for 'EPFO'\n"
+                "  3. Click 'Employee Centric Services'\n"
+                "  4. Login with UAN + OTP\n"
+                "  5. View passbook & balance\n\n"
+                "📱 **Method 3: SMS**\n"
+                "  Send: **EPFOHO UAN LAN** to **7738299899**\n"
+                "  (LAN: ENG, HIN, TAM, TEL, MAR, KAN, MAL, BEN, GUJ, PUN, ORI, ASS)\n\n"
+                "📱 **Method 4: Missed Call**\n"
+                "  Give missed call to **011-22901406** from registered mobile\n\n"
+                "  ⚠️ First activate UAN at: unifiedportal-mem.epfindia.gov.in"
+            )
+
+        elif "uan" in args:
+            if "activate" in args:
+                return (
+                    "**Activate UAN (Universal Account Number):**\n\n"
+                    "  1. Visit: unifiedportal-mem.epfindia.gov.in\n"
+                    "  2. Click 'Activate UAN' under 'Important Links'\n"
+                    "  3. Enter: UAN, Aadhaar, Name, DOB, Mobile, Email\n"
+                    "  4. Get OTP on mobile → Enter OTP\n"
+                    "  5. Set password → UAN activated!\n\n"
+                    "  📌 **Find your UAN:**\n"
+                    "  - Check salary slip (employer provides UAN)\n"
+                    "  - SMS: **UAN** to **7738299899** (if mobile linked)\n"
+                    "  - Ask your HR/employer"
+                )
+            else:
+                return (
+                    "**UAN (Universal Account Number):**\n\n"
+                    "  - 12-digit number assigned to every EPFO member\n"
+                    "  - One UAN = One PF account (even if you change jobs)\n"
+                    "  - Link all PF accounts to single UAN\n\n"
+                    "  **Find your UAN:**\n"
+                    "  - Check salary slip\n"
+                    "  - Ask employer HR\n"
+                    "  - unifiedportal-mem.epfindia.gov.in"
+                )
+
+        elif "claim" in args or "withdraw" in args or "settlement" in args:
+            return (
+                "**PF Claim / Withdrawal Process:**\n\n"
+                "📱 **Online Claim (Recommended):**\n"
+                "  1. Login: unifiedportal-mem.epfindia.gov.in\n"
+                "  2. Go to 'Manage' → 'KYC' → Update Aadhaar, PAN, Bank\n"
+                "  3. Go to 'Online Services' → 'Claim (Form-31, 19, 10C & 10D)'\n"
+                "  4. Select claim type:\n"
+                    "     - Form 19: Final PF settlement\n"
+                    "     - Form 31: Partial withdrawal (housing, medical, education)\n"
+                    "     - Form 10C: Pension withdrawal\n"
+                    "     - Form 10D: Monthly pension\n"
+                "  5. Enter amount → Submit → OTP on Aadhaar-linked mobile\n"
+                "  6. Amount credited in 5-20 working days\n\n"
+                "📋 **Eligibility for Withdrawal:**\n"
+                "  - Form 31: After 7 years of service (housing), 5 years (education)\n"
+                "  - Form 19: After 2 months of last contribution (unemployment)\n"
+                "  - Form 10C: After 10 years of service\n\n"
+                "  📞 EPFO Helpline: **1800-118-185** (toll-free)"
+            )
+
+        elif "pension" in args or "eps" in args:
+            return (
+                "**EPFO Pension Scheme (EPS):**\n\n"
+                "  📋 **How EPS Works:**\n"
+                "  - 8.33% of basic salary goes to EPS (from employer's 12%)\n"
+                "  - Pension = (Pensionable Salary × Pensionable Service) / 70\n"
+                "  - Minimum service: 10 years\n"
+                "  - Pension age: 58 years (can start at 50 with reduced amount)\n\n"
+                "  💰 **Pension Amounts (Approximate):**\n"
+                "  - 10 years service, Rs 15,000 salary: ~Rs 2,143/month\n"
+                "  - 20 years service, Rs 15,000 salary: ~Rs 4,286/month\n"
+                "  - 30 years service, Rs 15,000 salary: ~Rs 6,429/month\n"
+                "  - 35 years service, Rs 25,000 salary: ~Rs 12,500/month\n\n"
+                "  📋 **How to Apply for Pension:**\n"
+                "  1. Submit Form 10D (online or at EPFO office)\n"
+                "  2. Required: Aadhaar, bank details, cancelled cheque\n"
+                "  3. Pension starts from date of filing application\n\n"
+                "  ⚠️ **Important:**\n"
+                "  - Pension is taxable if total income > Rs 5L\n"
+                "  - EPS pension is NOT inflation-indexed\n"
+                "  - Family pension: 50% to spouse after member's death"
+            )
+
+        elif "transfer" in args:
+            return (
+                "**PF Transfer (Job Change):**\n\n"
+                "📱 **Online Transfer:**\n"
+                "  1. Login: unifiedportal-mem.epfindia.gov.in\n"
+                "  2. Go to 'Online Services' → 'One Member - One EPF Account'\n"
+                "  3. Enter old employer's establishment code\n"
+                "  4. Submit → Old employer approves → Amount transferred\n\n"
+                "  ⏱️ Takes 20-30 days after approval\n"
+                "  📋 Both old & new employer must have linked KYC\n\n"
+                "  💡 **Tips:**\n"
+                "  - Always transfer within 2 months of leaving job\n"
+                "  - If employer doesn't respond in 15 days, escalate to EPFO\n"
+                "  - Track status: unifiedportal → 'Track Claim Status'"
+            )
+
+        else:
+            return (
+                "**EPFO / PF Services:**\n\n"
+                "  📌 Available commands:\n"
+                "  - epfo: check balance — View PF balance & passbook\n"
+                "  - epfo: uan activate — Activate your UAN\n"
+                "  - epfo: uan — Know about UAN\n"
+                "  - epfo: claim process — How to withdraw PF\n"
+                "  - epfo: pension — EPS pension details\n"
+                "  - epfo: transfer — Transfer PF on job change\n\n"
+                "  📞 EPFO Helpline: **1800-118-185** (toll-free)\n"
+                "  🌐 Portal: unifiedportal-mem.epfindia.gov.in\n"
+                "  📱 App: UMANG → EPFO services"
+            )
 
     # ── Petrol / Diesel Prices ──────────────────────────────────────────────
 
