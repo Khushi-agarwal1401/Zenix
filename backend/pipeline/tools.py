@@ -367,6 +367,42 @@ class ToolRegistry:
             "usage": "abuse: stats | abuse: session <id> | abuse: cleanup",
             "handler": self._handle_abuse,
         }
+        self.tools["medicine"] = {
+            "name": "medicine",
+            "description": (
+                "Medicine interaction checker and drug information. Check if two medicines "
+                "can be taken together, side effects, dosage guidance, and alternatives."
+            ),
+            "usage": "medicine: paracetamol and ibuprofen | medicine: cross check crocin with combiflam | medicine: side effects of metformin",
+            "handler": self._handle_medicine,
+        }
+        self.tools["bank"] = {
+            "name": "bank",
+            "description": (
+                "Banking guidance: how to check balance, mini statement, transfer money, "
+                "block card, update KYC for SBI, HDFC, ICICI, PNB, and all major banks."
+            ),
+            "usage": "bank: check balance SBI | bank: mini statement HDFC | bank: transfer money ICICI | bank: block card",
+            "handler": self._handle_bank,
+        }
+        self.tools["electricity"] = {
+            "name": "electricity",
+            "description": (
+                "Electricity bill payment guidance and discom information for Indian states. "
+                "How to pay bill, check consumption, register complaint, apply for new connection."
+            ),
+            "usage": "electricity: pay bill Delhi | electricity: complaint Mumbai | electricity: new connection Bangalore",
+            "handler": self._handle_electricity,
+        }
+        self.tools["driving_license"] = {
+            "name": "driving_license",
+            "description": (
+                "Driving license application, renewal, and related services. "
+                "Step-by-step guide for DL application, test booking, international DL, and more."
+            ),
+            "usage": "driving_license: apply | driving_license: renew | driving_license: international | driving_license: test booking",
+            "handler": self._handle_driving_license,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -2128,6 +2164,868 @@ class ToolRegistry:
 
         except Exception as e:
             return f"Weather error: {e}"
+
+    # ── Medicine Interaction Checker ────────────────────────────────────────
+
+    def _handle_medicine(self, args: str) -> str:
+        """Check medicine interactions, side effects, and dosage guidance."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Medicine Interaction Checker:**\n\n"
+                "Usage:\n"
+                "  medicine: paracetamol and ibuprofen — Check if safe together\n"
+                "  medicine: cross check crocin with combiflam — Interaction check\n"
+                "  medicine: side effects of metformin — Side effects info\n"
+                "  medicine: dosage of amoxicillin — Dosage guidance\n"
+                "  medicine: alternatives for aspirin — Alternative medicines\n\n"
+                "⚠️ *This is for informational purposes only. Always consult a doctor.*"
+            )
+
+        args_lower = args.lower()
+
+        # ── Drug Database ───────────────────────────────────────────────────
+        # Common Indian medicines with interaction data
+        DRUGS = {
+            # Pain / Fever
+            "paracetamol": {
+                "generic": "Acetaminophen", "category": "Analgesic/Antipyretic",
+                "uses": "Fever, mild-moderate pain, headache, body ache",
+                "dosage": "500mg-1g every 4-6 hours (max 4g/day)",
+                "side_effects": "Nausea, liver damage (overdose), skin rash (rare)",
+                "interacts_with": ["warfarin", "isoniazid", "alcohol"],
+                "warnings": "Avoid alcohol. Max 4g/day. Liver disease patients: consult doctor.",
+                "brands": ["Crocin", "Dolo", "Calpol", "Pyrimon"],
+            },
+            "ibuprofen": {
+                "generic": "Ibuprofen", "category": "NSAID",
+                "uses": "Pain, inflammation, fever, menstrual cramps, arthritis",
+                "dosage": "200-400mg every 4-6 hours (max 1200mg/day OTC)",
+                "side_effects": "Stomach upset, gastric bleeding, kidney issues (long term)",
+                "interacts_with": ["aspirin", "blood thinners", "lithium", "methotrexate", "ace inhibitors"],
+                "warnings": "Take with food. Avoid if gastric ulcers. Not for kidney disease.",
+                "brands": ["Brufen", "Ibugesic", "Combiflam (with paracetamol)", "Mefnac"],
+            },
+            "aspirin": {
+                "generic": "Acetylsalicylic Acid", "category": "NSAID/Antiplatelet",
+                "uses": "Pain, fever, heart attack prevention, blood clot prevention",
+                "dosage": "75-325mg daily (cardiac) or 325-650mg every 4-6 hrs (pain)",
+                "side_effects": "Gastric bleeding, tinnitus, Reye's syndrome (children)",
+                "interacts_with": ["warfarin", "ibuprofen", "methotrexate", "blood thinners"],
+                "warnings": "NEVER give to children under 16 (Reye's syndrome). Avoid before surgery.",
+                "brands": ["Ecospirin", "Loprin", "Delisprin"],
+            },
+            "combiflam": {
+                "generic": "Ibuprofen + Paracetamol", "category": "Combination NSAID",
+                "uses": "Pain, fever, inflammation (combination therapy)",
+                "dosage": "1 tablet every 8 hours after food (max 3/day)",
+                "side_effects": "Stomach upset, nausea, dizziness",
+                "interacts_with": ["blood thinners", "ace inhibitors", "lithium"],
+                "warnings": "Do NOT take with other ibuprofen or paracetamol. Take after food.",
+                "brands": ["Combiflam", "Flexon", "Ibugesic Plus"],
+            },
+            "crocin": {
+                "generic": "Paracetamol", "category": "Analgesic/Antipyretic",
+                "uses": "Fever, pain (same as paracetamol)",
+                "dosage": "500mg-1g every 4-6 hours",
+                "side_effects": "Same as paracetamol",
+                "interacts_with": ["warfarin", "isoniazid", "alcohol"],
+                "warnings": "Same as paracetamol. Common brand in India.",
+                "brands": ["Crocin", "Crocin Advance", "Crocin Pain Relief"],
+            },
+            # Antibiotics
+            "amoxicillin": {
+                "generic": "Amoxicillin", "category": "Antibiotic (Penicillin)",
+                "uses": "Bacterial infections: throat, ear, UTI, pneumonia",
+                "dosage": "250-500mg every 8 hours or 500mg every 12 hours",
+                "side_effects": "Diarrhea, nausea, skin rash, allergic reactions",
+                "interacts_with": ["methotrexate", "warfarin", "oral contraceptives"],
+                "warnings": "Complete full course. Do NOT use for viral infections. Allergy check: penicillin allergy.",
+                "brands": ["Amoxil", "Mox", "Astomox", "Wymox"],
+            },
+            "azithromycin": {
+                "generic": "Azithromycin", "category": "Antibiotic (Macrolide)",
+                "uses": "Respiratory infections, STIs, skin infections",
+                "dosage": "500mg day 1, then 250mg days 2-5",
+                "side_effects": "Diarrhea, nausea, QT prolongation (heart rhythm)",
+                "interacts_with": ["antacids", "warfarin", "statins"],
+                "warnings": "Take 1 hour before or 2 hours after food. Heart rhythm issues: consult doctor.",
+                "brands": ["Azee", "Azithral", "Zifi", "Azax"],
+            },
+            # Diabetes
+            "metformin": {
+                "generic": "Metformin Hydrochloride", "category": "Antidiabetic (Biguanide)",
+                "uses": "Type 2 diabetes, PCOS, prediabetes",
+                "dosage": "500mg twice daily with meals (max 2550mg/day)",
+                "side_effects": "Nausea, diarrhea, metallic taste, B12 deficiency (long term)",
+                "interacts_with": ["alcohol", "contrast dye (CT scan)", "diuretics"],
+                "warnings": "Stop 48 hours before CT scan with contrast. Take with food. Monitor B12 levels.",
+                "brands": ["Glycomet", "Metformin", "Obimet", "Glyciphage"],
+            },
+            # Blood Pressure
+            "amlodipine": {
+                "generic": "Amlodipine Besylate", "category": "Calcium Channel Blocker",
+                "uses": "High blood pressure, angina (chest pain)",
+                "dosage": "5-10mg once daily",
+                "side_effects": "Ankle swelling, dizziness, flushing, headache",
+                "interacts_with": ["simvastatin (high dose)", "cyclosporine"],
+                "warnings": "Do not stop suddenly. Swelling usually reduces over time.",
+                "brands": ["Amlodac", "Amlokind", "Stamlo", "Amtas"],
+            },
+            "atenolol": {
+                "generic": "Atenolol", "category": "Beta Blocker",
+                "uses": "High blood pressure, angina, anxiety, migraine prevention",
+                "dosage": "25-100mg once daily",
+                "side_effects": "Fatigue, cold hands/feet, slow heartbeat, dizziness",
+                "interacts_with": ["insulin", "other BP medicines", "calcium channel blockers"],
+                "warnings": "Do not stop suddenly (rebound hypertension). Monitor heart rate.",
+                "brands": ["Aten", "Atcardil", "Tenolol", "Amten"],
+            },
+            # Cholesterol
+            "atorvastatin": {
+                "generic": "Atorvastatin Calcium", "category": "Statin",
+                "uses": "High cholesterol, heart disease prevention",
+                "dosage": "10-80mg once daily (usually at night)",
+                "side_effects": "Muscle pain, liver enzyme elevation, digestive issues",
+                "interacts_with": ["grapefruit juice", "fibrates", "niacin", "cyclosporine"],
+                "warnings": "Report unexplained muscle pain immediately. Avoid grapefruit. Regular liver tests.",
+                "brands": ["Atorva", "Lipitor", "Tgvator", "Stator"],
+            },
+            # Acid / Gastric
+            "pantoprazole": {
+                "generic": "Pantoprazole", "category": "Proton Pump Inhibitor",
+                "uses": "Acid reflux, GERD, stomach ulcers, acidity",
+                "dosage": "40mg once daily before breakfast (2-4 weeks)",
+                "side_effects": "Headache, nausea, long-term: B12 deficiency, bone fractures",
+                "interacts_with": ["methotrexate", "clopidogrel", "iron supplements"],
+                "warnings": "Take 30 min before food. Not for long-term use without doctor advice.",
+                "brands": ["Pantocid", "Pan", "Pantodac", "Ulgel"],
+            },
+            # Allergy
+            "cetirizine": {
+                "generic": "Cetirizine Hydrochloride", "category": "Antihistamine",
+                "uses": "Allergies, sneezing, runny nose, urticaria, itching",
+                "dosage": "10mg once daily",
+                "side_effects": "Drowsiness, dry mouth, headache",
+                "interacts_with": ["alcohol", "sedatives", "other antihistamines"],
+                "warnings": "May cause drowsiness. Avoid driving. Do not combine with alcohol.",
+                "brands": ["Cetzine", "Alerid", "Cetcip", "OKAM"],
+            },
+            # Vitamins
+            "vitamin_d3": {
+                "generic": "Cholecalciferol", "category": "Vitamin Supplement",
+                "uses": "Vitamin D deficiency, bone health, immunity",
+                "dosage": "60,000 IU weekly (deficiency) or 1000 IU daily (maintenance)",
+                "side_effects": "Nausea, constipation (overdose: hypercalcemia)",
+                "interacts_with": ["thiazide diuretics", "digitalis"],
+                "warnings": "Take with fatty food for absorption. Get levels tested (25-OH Vitamin D).",
+                "brands": ["D-Rise", "Tata 1mg Vitamin D3", "HealthOK"],
+            },
+            # Blood thinners
+            "warfarin": {
+                "generic": "Warfarin Sodium", "category": "Anticoagulant",
+                "uses": "Blood clot prevention, atrial fibrillation, DVT",
+                "dosage": "Individualized (INR monitoring required)",
+                "side_effects": "Bleeding, bruising, hair loss",
+                "interacts_with": ["aspirin", "ibuprofen", "paracetamol (high dose)", "vitamin K foods", "many antibiotics"],
+                "warnings": "DANGEROUS interactions. Regular INR testing mandatory. Avoid green leafy vegetables fluctuation.",
+                "brands": ["Warcobin", "Calan", "Wfarin"],
+            },
+        }
+
+        # ── Parse query ─────────────────────────────────────────────────────
+        found_drugs = []
+        query_lower = args_lower
+
+        # Find which drugs are mentioned
+        for drug_name in DRUGS:
+            if drug_name in query_lower:
+                found_drugs.append(drug_name)
+            else:
+                # Check brand names
+                for brand in DRUGS[drug_name]["brands"]:
+                    if brand.lower() in query_lower:
+                        if drug_name not in found_drugs:
+                            found_drugs.append(drug_name)
+
+        # Check for interaction keywords
+        is_cross_check = any(w in query_lower for w in ["cross", "together", "and", "with", "safe", "interaction"])
+        is_side_effects = any(w in query_lower for w in ["side effect", "side effect", "reaction"])
+        is_dosage = any(w in query_lower for w in ["dosage", "dose", "how much", "kitna", "how to take"])
+        is_alternatives = any(w in query_lower for w in ["alternative", "instead", "other", "bekaar", "substitute"])
+
+        if not found_drugs:
+            # Try fuzzy match
+            words = query_lower.split()
+            for word in words:
+                if len(word) > 3:
+                    for drug_name in DRUGS:
+                        if word in drug_name or drug_name in word:
+                            if drug_name not in found_drugs:
+                                found_drugs.append(drug_name)
+
+        if not found_drugs:
+            return (
+                f"Could not identify medicines in: '{args}'\n"
+                f"Try mentioning brand names (Crocin, Combiflam, Dolo) or generic names (paracetamol, ibuprofen).\n"
+                f"Available drugs: {', '.join(sorted(DRUGS.keys()))}"
+            )
+
+        # ── Generate response ───────────────────────────────────────────────
+        lines = []
+
+        # Show drug info for each found drug
+        for drug in found_drugs:
+            info = DRUGS[drug]
+            lines.append(f"**{drug.title()}** ({info['generic']})")
+            lines.append(f"  Category: {info['category']}")
+            lines.append(f"  Uses: {info['uses']}")
+            lines.append(f"  Dosage: {info['dosage']}")
+            lines.append(f"  Brands: {', '.join(info['brands'])}")
+            lines.append("")
+
+        # Side effects
+        if is_side_effects or len(found_drugs) == 1:
+            for drug in found_drugs:
+                info = DRUGS[drug]
+                lines.append(f"**{drug.title()} — Side Effects:**")
+                lines.append(f"  {info['side_effects']}")
+                lines.append(f"  ⚠️ {info['warnings']}")
+                lines.append("")
+
+        # Dosage
+        if is_dosage:
+            for drug in found_drugs:
+                info = DRUGS[drug]
+                lines.append(f"**{drug.title()} — Dosage:**")
+                lines.append(f"  {info['dosage']}")
+                lines.append(f"  ⚠️ {info['warnings']}")
+                lines.append("")
+
+        # Alternatives
+        if is_alternatives:
+            for drug in found_drugs:
+                info = DRUGS[drug]
+                category = info["category"]
+                alts = [d for d, v in DRUGS.items() if v["category"] == category and d != drug]
+                if alts:
+                    lines.append(f"**Alternatives for {drug.title()} ({category}):**")
+                    for alt in alts[:3]:
+                        alt_info = DRUGS[alt]
+                        lines.append(f"  - {alt.title()} ({alt_info['generic']}): {alt_info['uses'][:60]}")
+                    lines.append("")
+
+        # Interaction check
+        if is_cross_check and len(found_drugs) >= 2:
+            d1, d2 = found_drugs[0], found_drugs[1]
+            info1, info2 = DRUGS[d1], DRUGS[d2]
+
+            lines.append(f"**Interaction Check: {d1.title()} + {d2.title()}**\n")
+
+            # Check if d2 is in d1's interaction list or vice versa
+            interacts = (
+                d2 in info1["interacts_with"] or
+                d1 in info2["interacts_with"] or
+                any(d2 in iw for iw in info1["interacts_with"]) or
+                any(d1 in iw for iw in info2["interacts_with"])
+            )
+
+            if interacts:
+                lines.append(f"  🔴 **INTERACTION DETECTED — Use with caution!**")
+                lines.append(f"  {d1.title()} and {d2.title()} may interact.")
+                # Specific interaction warnings
+                dangerous_pairs = [
+                    ("aspirin", "ibuprofen"), ("aspirin", "warfarin"),
+                    ("ibuprofen", "warfarin"), ("paracetamol", "warfarin"),
+                ]
+                pair = tuple(sorted([d1, d2]))
+                if pair in [("aspirin", "ibuprofen"), ("aspirin", "paracetamol"), ("ibuprofen", "paracetamol")]:
+                    lines.append(f"  Two painkillers together increase risk of stomach bleeding.")
+                elif "warfarin" in [d1, d2]:
+                    lines.append(f"  {d1.title() if d2 == 'warfarin' else d2.title()} increases bleeding risk with Warfarin.")
+                lines.append(f"  💡 Space doses 2-4 hours apart, or consult your doctor.")
+            else:
+                lines.append(f"  ✅ **No known significant interaction between {d1.title()} and {d2.title()}.**")
+                lines.append(f"  Generally safe to take together, but always follow dosage guidelines.")
+
+            # Also check common interactions for each
+            for drug in found_drugs:
+                info = DRUGS[drug]
+                other_drugs_in_list = [d for d in found_drugs if d != drug]
+                for other in other_drugs_in_list:
+                    for iw in info["interacts_with"]:
+                        if other in iw:
+                            lines.append(f"  ⚠️ Note: {drug.title()} also interacts with {iw}")
+
+            lines.append("")
+
+        # General warnings
+        lines.append("---")
+        lines.append("⚠️ **Disclaimer:** This is for informational purposes only.")
+        lines.append("Always consult a qualified doctor or pharmacist before taking any medicine.")
+        lines.append("In emergency, call **108** (Ambulance) or visit nearest hospital.")
+
+        return "\n".join(lines)
+
+    # ── Banking Guidance ────────────────────────────────────────────────────
+
+    def _handle_bank(self, args: str) -> str:
+        """Provide banking guidance for major Indian banks."""
+        args = args.strip().lower()
+        if not args:
+            return (
+                "**Banking Services:**\n\n"
+                "Usage:\n"
+                "  bank: check balance SBI — How to check SBI balance\n"
+                "  bank: mini statement HDFC — How to get mini statement\n"
+                "  bank: transfer money ICICI — Money transfer guide\n"
+                "  bank: block card PNB — Block lost/stolen card\n"
+                "  bank: update KYC Axis — KYC update process\n\n"
+                "Supported: SBI, HDFC, ICICI, PNB, Bank of Baroda, Canara, Union Bank, Axis, Kotak"
+            )
+
+        # Detect bank
+        bank = None
+        bank_aliases = {
+            "sbi": "SBI", "state bank": "SBI", "state bank of india": "SBI",
+            "hdfc": "HDFC", "hdfc bank": "HDFC",
+            "icici": "ICICI", "icici bank": "ICICI",
+            "pnb": "PNB", "punjab national": "PNB", "punjab national bank": "PNB",
+            "bob": "BOB", "bank of baroda": "BOB", "baroda": "BOB",
+            "canara": "Canara", "canara bank": "Canara",
+            "union": "Union Bank", "union bank": "Union Bank",
+            "axis": "Axis", "axis bank": "Axis",
+            "kotak": "Kotak", "kotak mahindra": "Kotak",
+            "idbi": "IDBI", "idbi bank": "IDBI",
+            "indian bank": "Indian Bank",
+            "central bank": "Central Bank",
+        }
+        for alias, name in bank_aliases.items():
+            if alias in args:
+                bank = name
+                break
+
+        # Detect action
+        is_balance = any(w in args for w in ["balance", "check balance", "kitna paisa", "balance check"])
+        is_mini = any(w in args for w in ["mini statement", "mini stmt", "last transactions", "recent transactions"])
+        is_transfer = any(w in args for w in ["transfer", "send money", "neft", "rtgs", "imps", "upi transfer"])
+        is_block = any(w in args for w in ["block", "lost card", "stolen card", "card band"])
+        is_kyc = any(w in args for w in ["kyc", "update kyc", "ekyc", "aadhaar link"])
+        is_statement = any(w in args for w in ["statement", "account statement", "passbook"])
+
+        if not bank:
+            bank = "SBI"  # default
+
+        # ── Balance Check ────────────────────────────────────────────────────
+        if is_balance:
+            balance_guides = {
+                "SBI": (
+                    f"**SBI — Check Account Balance:**\n\n"
+                    f"📱 **Method 1: Missed Call**\n"
+                    f"  Call **09223766666** from registered mobile\n"
+                    f"  Balance sent via SMS instantly\n\n"
+                    f"📱 **Method 2: SMS**\n"
+                    f"  Send **BAL** to **09223766666**\n"
+                    f"  Format: BAL<space>Account Number\n\n"
+                    f"📱 **Method 3: YONO App**\n"
+                    f"  Open YONO → Login → View Balance\n"
+                    f"  Download: yono.sbi.co.in\n\n"
+                    f"📱 **Method 4: Internet Banking**\n"
+                    f"  Login: onlinesbi.com → Account Summary\n\n"
+                    f"📱 **Method 5: USSD**\n"
+                    f"  Dial *99# → Choose SBI → Check Balance\n\n"
+                    f"📞 **Customer Care:** 1800-11-2211 (toll-free)"
+                ),
+                "HDFC": (
+                    f"**HDFC — Check Account Balance:**\n\n"
+                    f"📱 **Method 1: Missed Call**\n"
+                    f"  Call **09223920002** from registered mobile\n\n"
+                    f"📱 **Method 2: SMS**\n"
+                    f"  Send **BAL** to **5676712**\n\n"
+                    f"📱 **Method 3: HDFC Mobile App**\n"
+                    f"  Open app → Login → View Balance\n\n"
+                    f"📱 **Method 4: NetBanking**\n"
+                    f"  Login: netbanking.hdfcbank.com\n\n"
+                    f"📱 **Method 5: WhatsApp Banking**\n"
+                    f"  Send 'Hi' to **7065970659**\n\n"
+                    f"📞 **Customer Care:** 1800-266-4332 (toll-free)"
+                ),
+                "ICICI": (
+                    f"**ICICI — Check Account Balance:**\n\n"
+                    f"📱 **Method 1: Missed Call**\n"
+                    f"  Call **09222488888** from registered mobile\n\n"
+                    f"📱 **Method 2: SMS**\n"
+                    f"  Send **IBAL** to **09222488888**\n\n"
+                    f"📱 **Method 3: iMobile App**\n"
+                    f"  Open iMobile → Login → View Balance\n\n"
+                    f"📱 **Method 4: NetBanking**\n"
+                    f"  Login: icicibank.com\n\n"
+                    f"📱 **Method 5: WhatsApp Banking**\n"
+                    f"  Send 'Hi' to **08643990000**\n\n"
+                    f"📞 **Customer Care:** 1800-103-8181 (toll-free)"
+                ),
+                "PNB": (
+                    f"**PNB — Check Account Balance:**\n\n"
+                    f"📱 **Method 1: Missed Call**\n"
+                    f"  Call **1800-180-2223** (toll-free)\n\n"
+                    f"📱 **Method 2: SMS**\n"
+                    f"  Send **BAL<space>Account Number** to **9264092640**\n\n"
+                    f"📱 **Method 3: PNB ONE App**\n"
+                    f"  Open PNB ONE → Login → View Balance\n\n"
+                    f"📱 **Method 4: NetBanking**\n"
+                    f"  Login: netpnb.com\n\n"
+                    f"📞 **Customer Care:** 1800-180-2223 (toll-free)"
+                ),
+            }
+
+            # Generic guide for other banks
+            generic_guide = (
+                f"**{bank} — Check Account Balance:**\n\n"
+                f"📱 **Method 1: Missed Call**\n"
+                f"  Check {bank} website for missed call number\n"
+                f"  Usually from registered mobile\n\n"
+                f"📱 **Method 2: SMS Banking**\n"
+                f"  Send BAL to the bank's SMS number\n"
+                f"  Register for SMS banking first\n\n"
+                f"📱 **Method 3: Mobile App**\n"
+                f"  Download {bank} official app from Play Store / App Store\n"
+                f"  Login with credentials → View Balance\n\n"
+                f"📱 **Method 4: NetBanking**\n"
+                f"  Visit {bank} official website → Login\n\n"
+                f"📱 **Method 5: ATM**\n"
+                    f"  Insert card → Enter PIN → Check Balance\n\n"
+                f"📱 **Method 6: USSD**\n"
+                    f"  Dial *99# → Follow prompts\n\n"
+                f"📞 Call {bank} customer care for assistance"
+            )
+
+            return balance_guides.get(bank, generic_guide)
+
+        # ── Mini Statement ───────────────────────────────────────────────────
+        if is_mini:
+            mini_guides = {
+                "SBI": (
+                    f"**SBI — Mini Statement:**\n\n"
+                    f"📱 **Missed Call:** Call **09223866666** from registered mobile\n"
+                    f"  Last 5 transactions sent via SMS\n\n"
+                    f"📱 **SMS:** Send **MSTMT** to **09223866666**\n\n"
+                    f"📱 **YONO App:** Login → Account → View Statement\n\n"
+                    f"📱 **Passbook:** Update at any SBI ATM or branch"
+                ),
+                "HDFC": (
+                    f"**HDFC — Mini Statement:**\n\n"
+                    f"📱 **Missed Call:** Call **09223920001** from registered mobile\n"
+                    f"📱 **SMS:** Send **MSTMT** to **5676712**\n"
+                    f"📱 **HDFC App:** Login → Account → Statement"
+                ),
+                "ICICI": (
+                    f"**ICICI — Mini Statement:**\n\n"
+                    f"📱 **Missed Call:** Call **09222488888** from registered mobile\n"
+                    f"📱 **SMS:** Send **ITRAN** to **09222488888**\n"
+                    f"📱 **iMobile App:** Login → Accounts → Statement"
+                ),
+            }
+            return mini_guides.get(bank, f"Check {bank} app or website for mini statement. Or call customer care.")
+
+        # ── Transfer Money ───────────────────────────────────────────────────
+        if is_transfer:
+            return (
+                f"**{bank} — Transfer Money:**\n\n"
+                f"📱 **UPI (Instant, Free):**\n"
+                f"  1. Open {bank} UPI app (BHIM, Google Pay, PhonePe)\n"
+                f"  2. Enter recipient UPI ID or scan QR\n"
+                f"  3. Enter amount → Enter UPI PIN\n"
+                f"  4. Money transferred instantly\n\n"
+                f"📱 **NEFT (30 min - 2 hours):**\n"
+                    f"  1. Login to NetBanking\n"
+                    f"  2. Go to Funds Transfer → NEFT\n"
+                    f"  3. Add beneficiary (wait 30 min for approval)\n"
+                    f"  4. Enter amount → Confirm\n"
+                    f"  Working hours: 8 AM - 6:30 PM (Mon-Sat)\n\n"
+                f"📱 **RTGS (Real-time, for Rs 2L+):**\n"
+                    f"  Same as NEFT but select RTGS\n"
+                    f"  For amounts Rs 2 lakh and above\n"
+                    f"  Available 24x7\n\n"
+                f"📱 **IMPS (Instant, 24x7):**\n"
+                    f"  Via mobile banking or ATM\n"
+                    f"  Available 24x7, including holidays\n\n"
+                f"⚠️ **Never share UPI PIN or OTP with anyone.**"
+            )
+
+        # ── Block Card ───────────────────────────────────────────────────────
+        if is_block:
+            block_numbers = {
+                "SBI": "1800-11-2211 (toll-free) or 0124-2367777",
+                "HDFC": "1800-266-4332 (toll-free) or 022-61717100",
+                "ICICI": "1800-103-8181 (toll-free) or 022-33667777",
+                "PNB": "1800-180-2223 (toll-free) or 0120-2490000",
+                "BOB": "1800-223-222 (toll-free) or 022-66699000",
+                "Canara": "1800-425-0018 (toll-free)",
+                "Union Bank": "1800-22-2244 (toll-free)",
+                "Axis": "1800-233-5577 (toll-free) or 022-67987700",
+                "Kotak": "1860-266-0000 (toll-free)",
+            }
+            number = block_numbers.get(bank, "Check bank website for block card number")
+            return (
+                f"**{bank} — Block Lost/Stolen Card:**\n\n"
+                f"🚨 **IMMEDIATELY call:** {number}\n\n"
+                f"📱 **Via App:**\n"
+                f"  1. Open {bank} mobile app\n"
+                f"  2. Go to Cards → Select card → Block Card\n"
+                f"  3. Card blocked instantly\n\n"
+                f"📱 **Via NetBanking:**\n"
+                f"  1. Login → Cards → Block Card\n"
+                f"  2. Confirm blocking\n\n"
+                f"📱 **SMS (SBI):** Send BLOCK <last 4 digits> to 567676\n\n"
+                f"📋 **After blocking:**\n"
+                f"  - File police complaint (FIR) if stolen\n"
+                f"  - Request new card via app or branch\n"
+                f"  - Update auto-debit settings for new card"
+            )
+
+        # ── KYC Update ───────────────────────────────────────────────────────
+        if is_kyc:
+            return (
+                f"**{bank} — KYC Update / Aadhaar Linking:**\n\n"
+                f"📱 **Online e-KYC:**\n"
+                f"  1. Login to {bank} NetBanking\n"
+                f"  2. Go to Profile → KYC / Aadhaar Update\n"
+                f"  3. Enter Aadhaar number\n"
+                f"  4. OTP sent to Aadhaar-linked mobile\n"
+                f"  5. Enter OTP → KYC updated\n\n"
+                f"📱 **Via Branch:**\n"
+                f"  1. Visit nearest {bank} branch\n"
+                f"  2. Carry: Aadhaar, PAN, original documents\n"
+                f"  3. Fill KYC form\n"
+                f"  4. Submit → Updated in 1-3 working days\n\n"
+                f"📱 **Video KYC (V-CIP):**\n"
+                f"  Some banks offer video KYC from home\n"
+                f"  Check {bank} app for V-CIP option\n\n"
+                f"⚠️ **Important:** Keep KYC updated to avoid account freeze."
+            )
+
+        # ── Statement ────────────────────────────────────────────────────────
+        if is_statement:
+            return (
+                f"**{bank} — Account Statement:**\n\n"
+                f"📱 **Download from NetBanking:**\n"
+                f"  1. Login to {bank} NetBanking\n"
+                f"  2. Go to Accounts → Statement\n"
+                f"  3. Select date range\n"
+                f"  4. Download as PDF\n\n"
+                f"📱 **Email Statement:**\n"
+                f"  Set up auto email statement in NetBanking settings\n"
+                f"  Monthly statement sent to registered email\n\n"
+                f"📱 **Passbook Update:**\n"
+                f"  Visit branch with passbook\n"
+                f"  Or use passbook printing kiosk at branch"
+            )
+
+        # Default: show balance guide
+        return self._handle_bank(f"balance {bank}")
+
+    # ── Electricity Bill Guidance ────────────────────────────────────────────
+
+    def _handle_electricity(self, args: str) -> str:
+        """Electricity bill payment and discom guidance."""
+        args = args.strip().lower()
+        if not args:
+            return (
+                "**Electricity Bill Services:**\n\n"
+                "Usage:\n"
+                "  electricity: pay bill Delhi — Pay BSES/TPDDL bill\n"
+                "  electricity: pay bill Mumbai — Pay Adani/MSEDCL bill\n"
+                "  electricity: complaint Bangalore — Register complaint\n"
+                "  electricity: new connection Chennai — Apply for new connection\n\n"
+                "Supported cities: Delhi, Mumbai, Bangalore, Chennai, Kolkata, Hyderabad,"
+                " Pune, Ahmedabad, Jaipur, Lucknow, and all major cities"
+            )
+
+        # Detect city and discom
+        city_discoms = {
+            "delhi": {"discoms": ["BSES Rajdhani", "BSES Yamuna", "TPDDL"], "portal": "bsesdelhi.com / tpddl.com", "app": "BSES App", "pay": "PhonePe, Google Pay, Paytm, BSES website"},
+            "mumbai": {"discoms": ["Adani Electricity", "MSEDCL"], "portal": "adani.com / msedcl.com", "app": "Adani Electricity App", "pay": "Adani website, MahaVitaran App, UPI"},
+            "bangalore": {"discoms": ["BESCOM"], "portal": "bescom.karnataka.gov.in", "app": "BESCOM App", "pay": "BESCOM website, UPI, Bangalore One"},
+            "bengaluru": {"discoms": ["BESCOM"], "portal": "bescom.karnataka.gov.in", "app": "BESCOM App", "pay": "BESCOM website, UPI, Bangalore One"},
+            "chennai": {"discoms": ["TANGEDCO"], "portal": "tangedco.gov.in", "app": "TANGEDCO App", "pay": "TANGEDCO website, UPI"},
+            "kolkata": {"discoms": ["CESC"], "portal": "cesc.co.in", "app": "CESC App", "pay": "CESC website, UPI"},
+            "hyderabad": {"discoms": ["TSSPDCL", "TSSouthern", "TSNorthern"], "portal": "tssouthernpower.com", "app": "TSSPDCL App", "pay": "UPI, TSSPDCL website"},
+            "pune": {"discoms": ["MSEDCL"], "portal": "msedcl.com", "app": "MahaVitaran App", "pay": "MSEDCL website, UPI"},
+            "ahmedabad": {"discoms": ["UGVCL", "MGVCL"], "portal": "ugvcl.com", "app": "UGVCL App", "pay": "UGVCL website, UPI"},
+            "jaipur": {"discoms": ["JVVNL", "JdVVNL"], "portal": "jvvnl.org", "app": "JVVNL App", "pay": "JVVNL website, UPI"},
+            "lucknow": {"discoms": ["DVVNL", "MVVNL"], "portal": "dvvn.in", "app": "DVVNL App", "pay": "DVVNL website, UPI"},
+        }
+
+        # Detect city
+        city = None
+        for c in city_discoms:
+            if c in args:
+                city = c
+                break
+
+        if not city:
+            city = "delhi"  # default
+
+        discom_info = city_discoms[city]
+
+        # Detect action
+        is_pay = any(w in args for w in ["pay", "bill pay", "pay bill", "online pay"])
+        is_complaint = any(w in args for w in ["complaint", "problem", "issue", "outage", "power cut", "bijli"])
+        is_new = any(w in args for w in ["new connection", "naya connection", "apply", "new meter"])
+        is_complaint_status = any(w in args for w in ["status", "track"])
+
+        if is_complaint:
+            return (
+                f"**{city.title()} — Electricity Complaint:**\n\n"
+                f"📱 **Register Complaint:**\n"
+                f"  1. Call {discom_info['discoms'][0]} helpline (see below)\n"
+                f"  2. Or visit {discom_info['portal']}\n"
+                f"  3. Or use {discom_info['app']}\n"
+                f"  4. Provide: Consumer number, complaint details\n\n"
+                f"📱 **Common Issues:**\n"
+                f"  - Power cut: Check if area-wide outage\n"
+                f"  - Voltage fluctuation: Report to discom\n"
+                f"  - Meter not working: Request meter replacement\n"
+                f"  - Wrong bill: Submit reading with photo\n\n"
+                f"📞 **Helpline:**\n"
+                f"  - Emergency: 1912 (most states)\n"
+                f"  - BSES Delhi: 011-49444944\n"
+                f"  - MSEDCL: 1912\n"
+                f"  - BESCOM: 1912\n"
+                f"  - CESC: 1912\n\n"
+                f"💡 **Tip:** Take photo of meter reading before complaining."
+            )
+
+        if is_new:
+            return (
+                f"**{city.title()} — New Electricity Connection:**\n\n"
+                f"📋 **Documents Needed:**\n"
+                f"  - Aadhaar card\n"
+                f"  - Property ownership proof (sale deed / rental agreement)\n"
+                f"  - Building approval plan\n"
+                f"  - NOC from society (if apartment)\n"
+                f"  - Passport-size photos\n\n"
+                f"📱 **Apply Online:**\n"
+                f"  1. Visit {discom_info['portal']}\n"
+                f"  2. Register → Apply for New Connection\n"
+                f"  3. Upload documents\n"
+                f"  4. Pay application fee\n"
+                f"  5. Inspection within 7-10 days\n"
+                f"  6. Connection within 30 days\n\n"
+                f"📱 **Apply Offline:**\n"
+                f"  Visit {discom_info['discoms'][0]} office with documents\n\n"
+                f"💰 **Cost:** Rs 5,000 - 25,000 (depends on load and area)\n"
+                f"  - Application fee: Rs 100-500\n"
+                f"  - Service line charge: Rs 2,000-10,000\n"
+                f"  - Meter cost: Rs 1,000-3,000"
+            )
+
+        # Default: Pay bill
+        return (
+            f"**{city.title()} — Pay Electricity Bill:**\n\n"
+            f"🏢 **Discom:** {', '.join(discom_info['discoms'])}\n"
+            f"🌐 **Portal:** {discom_info['portal']}\n"
+            f"📱 **App:** {discom_info['app']}\n\n"
+            f"📱 **Online Payment Methods:**\n"
+            f"  1. **Discom Website:** Visit {discom_info['portal']} → Pay Bill\n"
+            f"  2. **UPI:** Google Pay / PhonePe / Paytm → Electricity → Select Discom\n"
+            f"  3. **App:** {discom_info['app']} → Pay Bill\n"
+            f"  4. **NEFT/NetBanking:** Login to your bank → Bill Payment\n\n"
+            f"📱 **Offline Payment:**\n"
+            f"  - Visit nearest {discom_info['discoms'][0]} office\n"
+            f"  - Use authorized payment centers\n"
+            f"  - Drop box at local office\n\n"
+            f"📋 **How to Pay:**\n"
+            f"  1. Find your Consumer Number (on previous bill)\n"
+            f"  2. Enter on payment portal/app\n"
+            f"  3. Verify name and amount\n"
+            f"  4. Pay → Save receipt\n\n"
+            f"💡 **Tips:**\n"
+            f"  - Set up auto-pay to avoid late fees\n"
+            f"  - Late fee: Rs 100-500 per month\n"
+            f"  - Check bill for subsidized rates (BPL families)"
+        )
+
+    # ── Driving License Guidance ─────────────────────────────────────────────
+
+    def _handle_driving_license(self, args: str) -> str:
+        """Driving license application, renewal, and services."""
+        args = args.strip().lower()
+        if not args:
+            return (
+                "**Driving License Services:**\n\n"
+                "Usage:\n"
+                "  driving_license: apply — New DL application\n"
+                "  driving_license: renew — Renew existing DL\n"
+                "  driving_license: international — International DL\n"
+                "  driving_license: test booking — Book DL test slot\n"
+                "  driving_license: status — Check application status\n"
+                "  driving_license: duplicate — Duplicate DL (lost)\n\n"
+                "All services via: parivahan.gov.in"
+            )
+
+        is_apply = any(w in args for w in ["apply", "new dl", "naya license", "banwana", "learner"])
+        is_renew = any(w in args for w in ["renew", "renewal", "validity", "extend"])
+        is_international = any(w in args for w in ["international", "idp", "abroad", "foreign"])
+        is_test = any(w in args for w in ["test", "slot", "booking", "appointment", "driving test"])
+        is_status = any(w in args for w in ["status", "track", "check status"])
+        is_duplicate = any(w in args for w in ["duplicate", "lost", "chori", "missing"])
+
+        if is_apply:
+            return (
+                "**New Driving License — Step by Step:**\n\n"
+                "📋 **Step 1: Learner's License (LL)**\n"
+                "  Age required: 16 years (gearless), 18 years (with gear)\n"
+                "  Documents: Aadhaar, age proof, address proof, photos\n"
+                "  Apply: parivahan.gov.in → Driving License → New Learner License\n"
+                "  Fee: Rs 200-500\n"
+                "  Validity: 6 months\n"
+                "  Test: Basic knowledge test (10 questions, online)\n\n"
+                "📋 **Step 2: Permanent Driving License**\n"
+                "  Wait: At least 30 days after Learner's License\n"
+                "  Apply: parivahan.gov.in → Driving License → New DL\n"
+                "  Documents: LL, Aadhaar, photos, address proof\n"
+                "  Fee: Rs 200-1000 (varies by vehicle type)\n"
+                "  Test: Practical driving test at RTO\n\n"
+                "📋 **Step 3: Vehicle Classes**\n"
+                "  LMV (Car): Age 18+, LL required\n"
+                "  MCWG (Motorcycle): Age 18+, gear vehicle\n"
+                "  MCWOG (Scooty): Age 16+, gearless <75cc\n"
+                "  Transport: Age 20+, commercial vehicle\n\n"
+                "📱 **Apply Online:**\n"
+                "  1. Visit parivahan.gov.in\n"
+                "  2. Select your state → RTO\n"
+                "  3. Fill application → Upload documents\n"
+                "  4. Pay fee online\n"
+                "  5. Book slot for test\n"
+                "  6. Attend test at RTO\n"
+                "  7. DL dispatched within 7-15 days\n\n"
+                "💡 **Tips:**\n"
+                "  - Learn traffic signs before test\n"
+                "  - Practice driving before practical test\n"
+                "  - Carry all originals on test day"
+            )
+
+        if is_renew:
+            return (
+                "**Driving License Renewal:**\n\n"
+                "📋 **When to Renew:**\n"
+                "  - 30 days before expiry (or after expiry with late fee)\n"
+                "  - Late fee: Rs 100/month (max Rs 1000)\n"
+                "  - After 5 years expiry: Fresh application required\n\n"
+                "📱 **Steps:**\n"
+                "  1. Visit parivahan.gov.in\n"
+                "  2. Select state → Renewal of DL\n"
+                "  3. Enter DL number → Verify details\n"
+                "  4. Upload: Aadhaar, photos, medical certificate (Form 1A)\n"
+                "  5. Pay fee: Rs 200-500\n"
+                "  6. No test required (usually)\n"
+                "  7. New DL dispatched in 7-15 days\n\n"
+                "📋 **Documents:**\n"
+                "  - Original DL\n"
+                "  - Aadhaar\n"
+                "  - Passport-size photos\n"
+                "  - Medical Certificate (Form 1A) from registered doctor\n\n"
+                "💡 **Tip:** Start renewal 2-3 months before expiry."
+            )
+
+        if is_international:
+            return (
+                "**International Driving Permit (IDP):**\n\n"
+                "📋 **Eligibility:**\n"
+                "  - Valid Indian Driving License\n"
+                "  - Age 18+\n"
+                "  - Valid passport\n\n"
+                "📱 **Steps:**\n"
+                "  1. Apply at RTO where DL was issued\n"
+                "  2. Or apply online: parivahan.gov.in\n"
+                "  3. Documents: DL, Passport, Visa, photos\n"
+                "  4. Fee: Rs 1000-2000\n"
+                "  5. IDP issued in 1-3 days\n\n"
+                "📋 **Documents:**\n"
+                "  - Valid Indian DL\n"
+                "  - Valid Passport\n"
+                "  - Valid Visa (if applicable)\n"
+                "  - Passport-size photos\n"
+                "  - Address proof\n\n"
+                "📋 **Validity:**\n"
+                "  - 1 year from date of issue\n"
+                "  - Valid in countries that recognize IDP\n"
+                "  - Not valid in some countries (check before travel)\n\n"
+                "💡 **Tip:** Some countries accept Indian DL directly (UAE, Singapore, etc.)."
+            )
+
+        if is_test:
+            return (
+                "**Book DL Test Slot:**\n\n"
+                "📱 **Steps:**\n"
+                "  1. Visit parivahan.gov.in\n"
+                "  2. Select your state → RTO\n"
+                "  3. Go to 'Appointment' or 'Slot Booking'\n"
+                "  4. Select DL Test\n"
+                "  5. Choose date and time slot\n"
+                "  6. Confirm booking\n"
+                "  7. Attend test at RTO on booked date\n\n"
+                "📋 **What to Bring on Test Day:**\n"
+                "  - Printed appointment receipt\n"
+                "  - Original LL/DL\n"
+                "  - Aadhaar\n"
+                "  - Vehicle (for practical test)\n"
+                "  - L/BTN for motorcycle test\n\n"
+                "📋 **Test Format:**\n"
+                "  - Online test: 20 questions, need 15 correct\n"
+                "  - Practical: H-track, slope, parking, reverse\n"
+                "  - Duration: 15-20 minutes\n\n"
+                "💡 **Practice these before test:**\n"
+                "  - Parallel parking\n"
+                "  - Reverse gear driving\n"
+                "  - Hill start (slope)\n"
+                "  - Emergency braking"
+            )
+
+        if is_status:
+            return (
+                "**Check DL Application Status:**\n\n"
+                "📱 **Steps:**\n"
+                "  1. Visit parivahan.gov.in\n"
+                "  2. Click 'Application Status'\n"
+                "  3. Enter Application Number or DL Number\n"
+                "  4. Enter date of birth\n"
+                "  5. View current status\n\n"
+                "📋 **Status Meanings:**\n"
+                "  - Applied: Application received\n"
+                "  - Under Processing: Being reviewed\n"
+                "  - Test Scheduled: Book your test\n"
+                "  - Test Passed: DL being printed\n"
+                "  - Dispatched: Sent via post (7-15 days)\n"
+                "  - Ready for Collection: Collect at RTO\n\n"
+                "📞 **Helpline:** 0120-4688900 (parivahan)"
+            )
+
+        if is_duplicate:
+            return (
+                "**Duplicate Driving License:**\n\n"
+                "📋 **When Needed:**\n"
+                "  - DL lost, stolen, or damaged\n"
+                "  - Name/address change\n\n"
+                "📱 **Steps:**\n"
+                "  1. File FIR if stolen\n"
+                "  2. Visit parivahan.gov.in\n"
+                "  3. Apply for Duplicate DL\n"
+                "  4. Enter DL number → Verify details\n"
+                "  5. Upload: Aadhaar, photos, FIR copy (if stolen)\n"
+                "  6. Pay fee: Rs 200-500\n"
+                "  7. No test required\n"
+                "  8. New DL dispatched in 7-15 days\n\n"
+                "📋 **Documents:**\n"
+                "  - Aadhaar\n"
+                "  - Passport-size photos\n"
+                "  - FIR copy (if stolen)\n"
+                "  - Address proof\n\n"
+                "💡 **Tip:** Keep scanned copy of DL on phone for emergencies."
+            )
+
+        return self._handle_driving_license("apply")
 
     # ── Training Data Pipeline ──────────────────────────────────────────────
 

@@ -254,7 +254,7 @@ const ROMAN_TO_TAMIL: Record<string, string> = {
  * Romanized Telugu transliteration map.
  */
 const ROMAN_TO_TELUGU: Record<string, string> = {
-    'a': 'అ', 'aa': 'ఆ', 'i': 'ఇ', 'ee': 'ఈ', 'u': 'ఉ', 'oo': 'ఊ',
+    'a': 'అ', 'aa': 'ఆ', 'i': 'ఇ', 'ii': 'ఈ', 'u': 'ఉ', 'uu': 'ఊ',
     'e': 'ఎ', 'ee': 'ఏ', 'ai': 'ఐ', 'o': 'ఒ', 'oo': 'ఓ', 'au': 'ఔ', 'am': 'అం', 'ah': 'అః',
     'k': 'క', 'kh': 'ఖ', 'g': 'గ', 'gh': 'ఘ', 'ng': 'ఙ',
     'ch': 'చ', 'chh': 'ఛ', 'j': 'జ', 'jh': 'ఝ', 'ny': 'ఞ',
@@ -329,7 +329,7 @@ const COMMON_WORD_MAPPINGS_GUJARATI: Record<string, string> = {
     'namaste': 'નમસ્તે', 'namaskar': 'નમસ્કાર', 'aabhar': 'આભાર',
     'kem': 'કેમ', 'cho': 'છો', 'hu': 'હું', 'tame': 'તમે',
     'aap': 'આપ', 'kya': 'ક્યાં', 'kau': 'કૌન', 'kyare': 'ક્યારે',
-    'shu': 'શું', 'evu': 'એવું', 'hu': 'હું', 'na': 'ના', 'haa': 'હા',
+    'shu': 'શું', 'evu': 'એવું', 'na': 'ના', 'haa': 'હા',
     'ma': 'માતા', 'bapuji': 'બાપુજી', 'bhai': 'ભાઈ', 'ben': 'બહેન',
     'khavu': 'ખાવું', 'pani': 'પાણી', 'bhat': 'ભાત', 'mithu': 'મીઠું',
     'cha': 'ચા', 'coffee': 'કોફી', 'bazar': 'બાઝાર', 'ghar': 'ઘર',
@@ -353,11 +353,11 @@ const COMMON_WORD_MAPPINGS_TELUGU: Record<string, string> = {
     'namaskaram': 'నమస్కారం', 'dhanyavadhamulu': 'ధన్యవాదములు',
     'ela': 'ఎలా', 'unnavu': 'ఉన్నావు', 'nenu': 'నేను', 'nuvvu': 'నువ్వు',
     'meeru': 'మీరు', 'ekkada': 'ఎక్కడ', 'evvaru': 'ఎవరు', 'entha': 'ఎంత',
-    'enduku': 'ఎందుకు', 'ela': 'ఎలా', 'eppudu': 'ఎప్పుడు', 'ledu': 'లేదు',
+    'enduku': 'ఎందుకు', 'eppudu': 'ఎప్పుడు', 'ledu': 'లేదు',
     'amma': 'అమ్మ', 'nanna': 'నన్న', 'anna': 'అన్న', 'akka': 'అక్క',
     'tinu': 'తిను', 'neellu': 'నీళ్ళు', 'annam': 'అన్నం',
     'chai': 'చాయ్', 'coffee': 'కాఫీ', 'angadi': 'అంగడి', 'illu': 'ఇల్లు',
-    'school': 'స్కూల్', 'college': 'కాలేజ్', 'office': 'ఆఫీసు',
+    'school': 'స్కూల్', 'college': 'కాలేజ్', 'office': 'ఆఫիս్',
 };
 
 // Common word mappings for Gurmukhi
