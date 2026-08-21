@@ -303,6 +303,34 @@ TOOL_KEYWORDS = {
     "std code:": "areacode",
     "isd code:": "areacode",
     "area code:": "areacode",
+    "execute code:": "code_exec",
+    "run code:": "code_exec",
+    "python code:": "code_exec",
+    "javascript code:": "code_exec",
+    "send email:": "email",
+    "email send:": "email",
+    "compare documents:": "compare",
+    "document diff:": "compare",
+    "insurance premium:": "insurance",
+    "health insurance:": "insurance",
+    "term insurance:": "insurance",
+    "add expense:": "budget",
+    "track expense:": "budget",
+    "budget summary:": "budget",
+    "expense report:": "budget",
+    "generate chart:": "image_gen",
+    "create chart:": "image_gen",
+    "make diagram:": "image_gen",
+    "search history:": "history_search",
+    "search chat:": "history_search",
+    "export excel:": "excel_export",
+    "export to excel:": "excel_export",
+    "subscribe notifications:": "notifications",
+    "job alert:": "notifications",
+    "exam reminder:": "notifications",
+    "search multilingual:": "multilingual_search",
+    "hindi search:": "multilingual_search",
+    "bengali search:": "multilingual_search",
     "weather 7 day:": "weather",
     "forecast:": "weather",
 }
@@ -381,7 +409,17 @@ class AgentModule(PipelineModule):
             f"- 'verify GSTIN 27AABCU9603R1ZM' → Step 1: business: verify GSTIN 27AABCU9603R1ZM\n"
             f"- 'GSTIN format' → Step 1: business: GSTIN format\n"
             f"- 'STD code Delhi' → Step 1: areacode: STD Delhi\n"
-            f"- 'ISD code USA' → Step 1: areacode: ISD USA\n\n"
+            f"- 'ISD code USA' → Step 1: areacode: ISD USA\n"
+            f"- 'run python code print(1+1)' → Step 1: code_exec: print(1+1)\n"
+            f"- 'send email to ram@example.com' → Step 1: email: send to ram@example.com\n"
+            f"- 'compare two documents' → Step 1: compare: <doc1> vs <doc2>\n"
+            f"- 'health insurance premium for 30 year old' → Step 1: insurance: health 30\n"
+            f"- 'add expense 500 food' → Step 1: budget: add expense 500 food\n"
+            f"- 'create bar chart of sales' → Step 1: image_gen: bar chart sales\n"
+            f"- 'search my chat history for weather' → Step 1: history_search: weather\n"
+            f"- 'export transactions to excel' → Step 1: excel_export: transactions\n"
+            f"- 'subscribe to job alerts' → Step 1: notifications: subscribe job_alert\n"
+            f"- 'search in Hindi for rights' → Step 1: multilingual_search: rights hindi\n\n"
             f"If the query is simple and only needs one tool, return a single step.\n"
             f"Plan:"
         )

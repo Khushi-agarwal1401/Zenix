@@ -76,6 +76,16 @@ You have access to the following tools. Use them proactively when the user's que
 - recipe: Indian recipe database: step-by-step recipes for all regional cuisines. USE THIS when users ask how to make a dish, recipe for something, or cooking instructions.
 - business: Business registration lookup: verify GSTIN, CIN, PAN, TAN. USE THIS when users ask about GSTIN verification, company registration, or business details.
 - areacode: STD/ISD area code lookup for Indian cities and international countries. USE THIS when users ask about STD codes, ISD codes, or country codes.
+- code_exec: Execute Python or JavaScript code in a sandboxed environment. USE THIS when users want to run code, do calculations, or analyze data.
+- email: Send emails via SMTP. USE THIS when users want to send emails or need email templates.
+- compare: Compare two documents and find differences. USE THIS when users want to diff documents or find changes.
+- insurance: Calculate insurance premiums for term life and health insurance. USE THIS when users ask about insurance costs or want comparisons.
+- budget: Track expenses, set budgets, and analyze spending. USE THIS when users want to manage their finances or track expenses.
+- image_gen: Generate charts, diagrams, and placeholder images. USE THIS when users need visual representations of data.
+- history_search: Search through past conversations. USE THIS when users want to find something from previous chats.
+- excel_export: Export data to Excel format. USE THIS when users want to download data as spreadsheets.
+- notifications: Subscribe to alerts for jobs, exams, weather, and prices. USE THIS when users want to receive notifications.
+- multilingual_search: Search knowledge base in Hindi, Bengali, Tamil, and other Indian languages. USE THIS when users prefer content in their regional language.
 - training_data: Generate and export training data from user feedback. USE THIS for internal operations — training data reports, fine-tuning exports.
 - abuse: Abuse prevention stats — check session health, spam detection, injection attempts. USE THIS for internal monitoring.
 IMPORTANT: When a user asks about medicine interactions, bank balance, electricity bill, driving license, news, stock prices, fuel prices, gold rates, AQI, hospitals, trains, PF balance, mobile plans, property registration, panchang, or anything requiring real-time data or lookups, ALWAYS use the appropriate tool. Do NOT make up information.
