@@ -503,6 +503,114 @@ class ToolRegistry:
             "usage": "areacode: STD Delhi | areacode: ISD USA | areacode: STD Mumbai | areacode: country Japan",
             "handler": self._handle_areacode,
         }
+        self.tools["code_exec"] = {
+            "name": "code_exec",
+            "description": (
+                "Execute Python or JavaScript code in a sandboxed environment. "
+                "Safe for calculations, data analysis, and testing code snippets."
+            ),
+            "usage": "code_exec: print(1+1) | code_exec: python [code] | code_exec: javascript [code]",
+            "handler": self._handle_code_exec,
+        }
+        self.tools["email"] = {
+            "name": "email",
+            "description": (
+                "Send emails via SMTP. Supports Gmail, Outlook, Yahoo. "
+                "Also provides email templates for job applications, complaints, etc."
+            ),
+            "usage": "email: send to user@example.com | email: template job_application | email: verify",
+            "handler": self._handle_email,
+        }
+        self.tools["compare"] = {
+            "name": "compare",
+            "description": (
+                "Compare two documents or texts and find differences. "
+                "Supports text comparison, contract diff, and similarity scoring."
+            ),
+            "usage": "compare: <text1> vs <text2> | compare: documents",
+            "handler": self._handle_compare,
+        }
+        self.tools["insurance"] = {
+            "name": "insurance",
+            "description": (
+                "Calculate insurance premiums for term life and health insurance. "
+                "Get quotes, compare plans, and personalized recommendations."
+            ),
+            "usage": "insurance: term 30 5000000 | insurance: health 30 500000 | insurance: recommend 30 1000000",
+            "handler": self._handle_insurance,
+        }
+        self.tools["budget"] = {
+            "name": "budget",
+            "description": (
+                "Track expenses, set budgets, and analyze spending. "
+                "Add income/expenses, view summaries, and savings goals."
+            ),
+            "usage": "budget: add 500 food lunch | budget: summary | budget: set limit 10000 food | budget: goals",
+            "handler": self._handle_budget,
+        }
+        self.tools["image_gen"] = {
+            "name": "image_gen",
+            "description": (
+                "Generate charts, diagrams, and placeholder images. "
+                "Supports bar, line, pie charts, flowcharts, and comparison charts."
+            ),
+            "usage": "image_gen: bar chart {Jan: 100, Feb: 200} | image_gen: flowchart Step1 Step2 | image_gen: pie {A: 30, B: 70}",
+            "handler": self._handle_image_gen,
+        }
+        self.tools["history_search"] = {
+            "name": "history_search",
+            "description": (
+                "Search through past conversations and chat history. "
+                "Find previous discussions, topics, and context."
+            ),
+            "usage": "history_search: weather | history_search: tax query | history_search: session abc123",
+            "handler": self._handle_history_search,
+        }
+        self.tools["excel_export"] = {
+            "name": "excel_export",
+            "description": (
+                "Export data to Excel (xlsx) or CSV format. "
+                "Export transactions, budgets, or custom data."
+            ),
+            "usage": "excel_export: transactions | excel_export: budget | excel_export: custom [data]",
+            "handler": self._handle_excel_export,
+        }
+        self.tools["notifications"] = {
+            "name": "notifications",
+            "description": (
+                "Subscribe to alerts for government jobs, exams, weather warnings, and price alerts. "
+                "Manage notification preferences."
+            ),
+            "usage": "notifications: subscribe job_alert | notifications: subscribe exam_reminder | notifications: list",
+            "handler": self._handle_notifications,
+        }
+        self.tools["multilingual_search"] = {
+            "name": "multilingual_search",
+            "description": (
+                "Search knowledge base in Hindi, Bengali, Tamil, and other Indian languages. "
+                "Get content in your preferred language."
+            ),
+            "usage": "multilingual_search: rights hindi | multilingual_search: emergency bengali | multilingual_search: schemes tamil",
+            "handler": self._handle_multilingual_search,
+        }
+        self.tools["semantic_search"] = {
+            "name": "semantic_search",
+            "description": (
+                "Semantic search across knowledge base using vector embeddings. "
+                "Better understanding of queries, even in different words."
+            ),
+            "usage": "semantic_search: what are my fundamental rights | semantic_search: how to file complaint",
+            "handler": self._handle_semantic_search,
+        }
+        self.tools["conversation_memory"] = {
+            "name": "conversation_memory",
+            "description": (
+                "Access conversation summaries and context from past sessions. "
+                "Recall what was discussed and continue where you left off."
+            ),
+            "usage": "conversation_memory: summary | conversation_memory: recent | conversation_memory: context",
+            "handler": self._handle_conversation_memory,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -4554,6 +4662,754 @@ class ToolRegistry:
                 return f"ISD code not found for: '{country_query}'\nTry: areacode: ISD"
 
         return "Error: Use format:\n  areacode: STD Delhi\n  areacode: ISD USA\n  areacode: country Japan"
+
+    # ── Code Execution ─────────────────────────────────────────────────────
+
+    def _handle_code_exec(self, args: str) -> str:
+        """Execute code in a sandboxed environment."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Code Execution:**\n\n"
+                "Usage:\n"
+                "  code_exec: print(1+1) — Execute Python code\n"
+                "  code_exec: console.log('hello') — Execute JavaScript\n"
+                "  code_exec: python [code] — Explicit Python\n"
+                "  code_exec: javascript [code] — Explicit JavaScript\n\n"
+                "⚠️ Code runs in sandbox with 10s timeout. No file/network access."
+            )
+
+        # Detect language
+        language = "python"
+        code = args
+        if args.lower().startswith("python "):
+            language = "python"
+            code = args[7:]
+        elif args.lower().startswith("javascript ") or args.lower().startswith("js "):
+            language = "javascript"
+            code = args[11:] if args.lower().startswith("javascript ") else args[3:]
+        elif "console.log" in args or "var " in args or "let " in args or "const " in args:
+            language = "javascript"
+
+        try:
+            from .code_executor import get_code_executor
+            executor = get_code_executor()
+            result = executor.execute(code, language)
+
+            if result.success:
+                output = result.output[:2000] if result.output else "(no output)"
+                return (
+                    f"**Code Execution Result ({result.language}):**\n\n"
+                    f"```
+{output}
+```
+\n"
+                    f"⏱️ Execution time: {result.execution_time}s"
+                )
+            else:
+                error = result.error[:1000] if result.error else "Unknown error"
+                return (
+                    f"**Code Execution Error:**\n\n"
+                    f"```
+{error}
+```
+\n"
+                    f"⏱️ Execution time: {result.execution_time}s"
+                )
+        except Exception as e:
+            return f"Code execution error: {e}"
+
+    # ── Email Service ──────────────────────────────────────────────────────
+
+    def _handle_email(self, args: str) -> str:
+        """Send emails or get email templates."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Email Service:**\n\n"
+                "Usage:\n"
+                "  email: send to user@example.com — Send email\n"
+                "  email: template job_application — Get email template\n"
+                "  email: verify — Verify SMTP connection\n\n"
+                "⚠️ Requires EMAIL_ADDRESS and EMAIL_PASSWORD env variables."
+            )
+
+        args_lower = args.lower()
+
+        if "verify" in args_lower:
+            try:
+                from .email_service import get_email_service
+                service = get_email_service()
+                if service.verify_connection():
+                    return "✅ Email connection verified successfully."
+                else:
+                    return "❌ Email connection failed. Check credentials."
+            except Exception as e:
+                return f"Email verification error: {e}"
+
+        if "template" in args_lower:
+            try:
+                from .email_service import get_email_templates
+                templates = get_email_templates()
+                template_name = args_lower.replace("template", "").strip()
+
+                if "job" in template_name:
+                    tpl = templates.job_application("[Your Name]", "[Position]", "[Company]")
+                elif "complaint" in template_name:
+                    tpl = templates.complaint("[Your Name]", "[Issue]", "[Details]")
+                elif "follow" in template_name:
+                    tpl = templates.follow_up("[Your Name]", "[Context]")
+                else:
+                    return "Available templates: job_application, complaint, follow_up"
+
+                return f"**Email Template:**\n\nSubject: {tpl['subject']}\n\n{tpl['body']}"
+            except Exception as e:
+                return f"Template error: {e}"
+
+        return "Use: email: send to <email> | email: template <type> | email: verify"
+
+    # ── Document Comparison ────────────────────────────────────────────────
+
+    def _handle_compare(self, args: str) -> str:
+        """Compare two texts or documents."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Document Comparison:**\n\n"
+                "Usage:\n"
+                "  compare: <text1> vs <text2> — Compare two texts\n"
+                "  compare: quick <text1> vs <text2> — Quick diff summary"
+            )
+
+        # Parse: text1 vs text2
+        vs_match = re.search(r'\bvs\b', args, re.IGNORECASE)
+        if not vs_match:
+            return "Error: Use format: compare: <text1> vs <text2>"
+
+        text1 = args[:vs_match.start()].strip()
+        text2 = args[vs_match.end():].strip()
+
+        # Remove 'quick' prefix if present
+        if text1.lower().startswith("quick"):
+            text1 = text1[5:].strip()
+            try:
+                from .document_compare import get_document_comparator
+                comparator = get_document_comparator()
+                result = comparator.get_quick_diff(text1, text2)
+                return result
+            except Exception as e:
+                return f"Comparison error: {e}"
+
+        if not text1 or not text2:
+            return "Error: Please provide two texts to compare."
+
+        try:
+            from .document_compare import get_document_comparator
+            comparator = get_document_comparator()
+            result = comparator.compare_texts(text1, text2)
+
+            if result.success:
+                lines = [
+                    f"**Document Comparison:**\n",
+                    f"📊 Similarity: {result.similarity_score}%",
+                    f"📝 Lines added: {result.summary.get('lines_added', 0)}",
+                    f"📝 Lines removed: {result.summary.get('lines_removed', 0)}",
+                    f"📝 Change: {result.summary.get('change_percentage', 0)}%\n",
+                ]
+
+                if result.differences:
+                    lines.append("**Key Differences:**")
+                    for diff in result.differences[:5]:
+                        if diff.get('type') == 'added':
+                            lines.append(f"  + {diff.get('content', '')[:100]}")
+                        elif diff.get('type') == 'removed':
+                            lines.append(f"  - {diff.get('content', '')[:100]}")
+
+                return "\n".join(lines)
+            else:
+                return f"Comparison failed: {result.error}"
+        except Exception as e:
+            return f"Comparison error: {e}"
+
+    # ── Insurance Calculator ───────────────────────────────────────────────
+
+    def _handle_insurance(self, args: str) -> str:
+        """Calculate insurance premiums."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Insurance Calculator:**\n\n"
+                "Usage:\n"
+                "  insurance: term 30 5000000 — Term life for 30yo, ₹50 lakh\n"
+                "  insurance: health 30 500000 — Health for 30yo, ₹5 lakh\n"
+                "  insurance: recommend 30 1000000 — Get recommendation\n"
+                "  insurance: compare health 30 — Compare plans"
+            )
+
+        args_lower = args.lower()
+
+        try:
+            from .insurance_calculator import get_insurance_calculator
+            calc = get_insurance_calculator()
+
+            if "recommend" in args_lower:
+                # Parse: recommend <age> <income>
+                nums = re.findall(r'\d+', args)
+                age = int(nums[0]) if len(nums) > 0 else 30
+                income = float(nums[1]) if len(nums) > 1 else 1000000
+                result = calc.get_recommendation(age, income)
+
+                lines = [
+                    f"**Insurance Recommendation (Age: {age}, Income: ₹{income:,.0f}):**\n",
+                    f"**Term Life Insurance:**",
+                    f"  Recommended: ₹{result['term_life']['recommended_amount']:,.0f}",
+                    f"  Monthly Premium: ₹{result['term_life']['monthly_premium']:,.0f}",
+                    f"  Annual Premium: ₹{result['term_life']['annual_premium']:,.0f}\n",
+                    f"**Health Insurance:**",
+                    f"  Recommended: ₹{result['health_insurance']['recommended_amount']:,.0f}",
+                    f"  Monthly Premium: ₹{result['health_insurance']['monthly_premium']:,.0f}",
+                    f"  Annual Premium: ₹{result['health_insurance']['annual_premium']:,.0f}\n",
+                    f"**Total:**",
+                    f"  Monthly: ₹{result['total_monthly']:,.0f}",
+                    f"  Annual: ₹{result['total_annual']:,.0f}",
+                    f"  % of Income: {result['percentage_of_income']}%",
+                ]
+                return "\n".join(lines)
+
+            elif "term" in args_lower:
+                nums = re.findall(r'\d+', args)
+                age = int(nums[0]) if len(nums) > 0 else 30
+                amount = float(nums[1]) if len(nums) > 1 else 5000000
+                tenure = int(nums[2]) if len(nums) > 2 else 20
+                result = calc.calculate_term_life(age, amount, tenure)
+
+                return (
+                    f"**Term Life Insurance Quote:**\n\n"
+                    f"👤 Age: {age} | Sum: ₹{amount:,.0f}\n"
+                    f"📅 Tenure: {tenure} years\n"
+                    f"💰 Monthly Premium: ₹{result.premium_monthly:,.0f}\n"
+                    f"💰 Annual Premium: ₹{result.premium_annual:,.0f}\n"
+                    f"\n⚠️ *Premiums are indicative. Consult an insurance advisor.*"
+                )
+
+            elif "health" in args_lower:
+                nums = re.findall(r'\d+', args)
+                age = int(nums[0]) if len(nums) > 0 else 30
+                amount = float(nums[1]) if len(nums) > 1 else 500000
+                result = calc.calculate_health(age, amount)
+
+                return (
+                    f"**Health Insurance Quote:**\n\n"
+                    f"👤 Age: {age} | Sum: ₹{amount:,.0f}\n"
+                    f"💰 Monthly Premium: ₹{result.premium_monthly:,.0f}\n"
+                    f"💰 Annual Premium: ₹{result.premium_annual:,.0f}\n"
+                    f"\n⚠️ *Premiums are indicative. Consult an insurance advisor.*"
+                )
+
+            return "Use: insurance: term <age> <amount> | insurance: health <age> <amount> | insurance: recommend <age> <income>"
+
+        except Exception as e:
+            return f"Insurance calculation error: {e}"
+
+    # ── Budget Tracker ─────────────────────────────────────────────────────
+
+    def _handle_budget(self, args: str) -> str:
+        """Track expenses and budgets."""
+        args = args.strip()
+        user_id = "default_user"
+        if not args:
+            return (
+                "**Budget Tracker:**\n\n"
+                "Usage:\n"
+                "  budget: add 500 food lunch — Add expense\n"
+                "  budget: add income 50000 salary — Add income\n"
+                "  budget: summary — Monthly summary\n"
+                "  budget: set limit 10000 food — Set category budget\n"
+                "  budget: goals — Savings goals\n"
+                "  budget: stats — Quick stats"
+            )
+
+        args_lower = args.lower()
+
+        try:
+            from .budget_tracker import get_budget_tracker
+            tracker = get_budget_tracker()
+
+            if "summary" in args_lower or "report" in args_lower:
+                summary = tracker.get_monthly_summary(user_id)
+                lines = [
+                    f"**Monthly Summary ({summary['month']}):**\n",
+                    f"💰 Income: ₹{summary['total_income']:,.0f}",
+                    f"💸 Expenses: ₹{summary['total_expenses']:,.0f}",
+                    f"💵 Savings: ₹{summary['savings']:,.0f}",
+                    f"📊 Savings Rate: {summary['savings_rate']}%\n",
+                ]
+                if summary['category_breakdown']:
+                    lines.append("**Category Breakdown:**")
+                    for cat, amt in summary['category_breakdown'].items():
+                        lines.append(f"  {cat}: ₹{amt:,.0f}")
+                return "\n".join(lines)
+
+            elif "stats" in args_lower:
+                stats = tracker.get_quick_stats(user_id)
+                return (
+                    f"**Quick Stats:**\n"
+                    f"📅 Today's Expenses: ₹{stats['today_expenses']:,.0f}\n"
+                    f"📆 This Month: ₹{stats['month_expenses']:,.0f}\n"
+                    f"💰 Income: ₹{stats['month_income']:,.0f}\n"
+                    f"💵 Savings: ₹{stats['month_savings']:,.0f}\n"
+                    f"📝 Total Transactions: {stats['total_transactions']}"
+                )
+
+            elif "add" in args_lower:
+                # Parse: add [income] <amount> <category> [description]
+                is_income = "income" in args_lower
+                nums = re.findall(r'[\d,]+', args)
+                if not nums:
+                    return "Error: Please provide amount. Example: budget: add 500 food lunch"
+                amount = float(nums[0].replace(',', ''))
+
+                # Extract category (word after amount)
+                words = args.split()
+                category = "Other"
+                for i, word in enumerate(words):
+                    if word.replace(',', '').isdigit():
+                        if i + 1 < len(words) and words[i+1].lower() not in ['income', 'expense']:
+                            category = words[i+1].title()
+                        break
+
+                description = args
+                trans_type = "income" if is_income else "expense"
+
+                trans_id = tracker.add_transaction(
+                    user_id=user_id,
+                    amount=amount,
+                    category=category,
+                    description=description,
+                    transaction_type=trans_type,
+                )
+                emoji = "💰" if is_income else "💸"
+                return f"{emoji} {trans_type.title()} added: ₹{amount:,.0f} ({category}) — ID: {trans_id}"
+
+            elif "set" in args_lower and "limit" in args_lower:
+                # Parse: set limit <amount> <category>
+                nums = re.findall(r'[\d,]+', args)
+                if not nums:
+                    return "Error: Please provide budget amount. Example: budget: set limit 10000 food"
+                limit = float(nums[0].replace(',', ''))
+                category = "Other"
+                for word in args.split():
+                    if not word.replace(',', '').isdigit() and word.lower() not in ['set', 'limit', 'budget', 'to']:
+                        category = word.title()
+                        break
+                tracker.set_budget(user_id, category, limit)
+                return f"✅ Budget set: {category} = ₹{limit:,.0f}/month"
+
+            elif "goals" in args_lower:
+                goals = tracker.get_savings_goals(user_id)
+                if not goals:
+                    return "No savings goals set. Use: budget: add goal <name> <amount>"
+                lines = ["**Savings Goals:**\n"]
+                for g in goals:
+                    lines.append(f"  🎯 {g['goal_name']}: ₹{g['current_amount']:,.0f} / ₹{g['target_amount']:,.0f} ({g['progress_percentage']}%)")
+                return "\n".join(lines)
+
+            return "Use: budget: add <amount> <category> | budget: summary | budget: stats"
+
+        except Exception as e:
+            return f"Budget error: {e}"
+
+    # ── Image Generation ───────────────────────────────────────────────────
+
+    def _handle_image_gen(self, args: str) -> str:
+        """Generate charts and diagrams."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Image Generation:**\n\n"
+                "Usage:\n"
+                "  image_gen: bar {Product A: 100, Product B: 200} — Bar chart\n"
+                "  image_gen: line {Jan: 10, Feb: 20, Mar: 15} — Line chart\n"
+                "  image_gen: pie {Food: 40, Transport: 20, Shopping: 40} — Pie chart\n"
+                "  image_gen: flowchart Step1 Step2 Step3 — Flowchart"
+            )
+
+        args_lower = args.lower()
+
+        # Parse chart data: {key: value, ...}
+        data_match = re.search(r'\{([^}]+)\}', args)
+        if data_match:
+            try:
+                # Parse the data dict
+                data_str = data_match.group(1)
+                pairs = data_str.split(',')
+                data = {}
+                for pair in pairs:
+                    if ':' in pair:
+                        key, val = pair.split(':', 1)
+                        data[key.strip()] = float(val.strip().replace(',', ''))
+
+                # Determine chart type
+                if "bar" in args_lower:
+                    chart_type = "bar"
+                elif "line" in args_lower:
+                    chart_type = "line"
+                elif "pie" in args_lower:
+                    chart_type = "pie"
+                elif "scatter" in args_lower:
+                    chart_type = "scatter"
+                else:
+                    chart_type = "bar"
+
+                title = re.search(r'title\s*[=:]\s*"([^"]+)"', args)
+                title = title.group(1) if title else f"{chart_type.title()} Chart"
+
+                from .image_generation import get_image_generator
+                generator = get_image_generator()
+                result = generator.generate_chart(chart_type, data, title)
+
+                if result.success:
+                    return (
+                        f"📊 **Chart Generated:**\n"
+                        f"  Type: {chart_type.title()}\n"
+                        f"  Data points: {len(data)}\n"
+                        f"  Saved to: {result.image_path}\n\n"
+                        f"💡 Chart ready for download."
+                    )
+                else:
+                    return f"Chart generation failed: {result.error}"
+
+            except Exception as e:
+                return f"Chart parsing error: {e}"
+
+        # Flowchart
+        if "flowchart" in args_lower:
+            steps = args.lower().replace("flowchart", "").strip().split()
+            if not steps:
+                return "Error: Provide steps. Example: image_gen: flowchart Step1 Step2 Step3"
+
+            try:
+                from .image_generation import get_image_generator
+                generator = get_image_generator()
+                result = generator.generate_flowchart(steps)
+
+                if result.success:
+                    return f"📊 **Flowchart Generated:** {len(steps)} steps — {result.image_path}"
+                else:
+                    return f"Flowchart generation failed: {result.error}"
+            except Exception as e:
+                return f"Flowchart error: {e}"
+
+        return "Use: image_gen: bar {data} | image_gen: line {data} | image_gen: pie {data} | image_gen: flowchart steps"
+
+    # ── History Search ─────────────────────────────────────────────────────
+
+    def _handle_history_search(self, args: str) -> str:
+        """Search conversation history."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Chat History Search:**\n\n"
+                "Usage:\n"
+                "  history_search: weather — Search for weather discussions\n"
+                "  history_search: tax query — Search tax-related chats\n"
+                "  history_search: recent — Recent conversations\n"
+                "  history_search: stats — Your chat statistics"
+            )
+
+        args_lower = args.lower()
+
+        try:
+            from .chat_history_search import get_chat_history_search
+            searcher = get_chat_history_search()
+
+            if "stats" in args_lower:
+                stats = searcher.get_session_stats("default_user")
+                if not stats:
+                    return "No conversation history found."
+                return (
+                    f"**Your Chat Statistics:**\n"
+                    f"📝 Total Messages: {stats.get('total_messages', 0)}\n"
+                    f"💬 Total Sessions: {stats.get('total_sessions', 0)}\n"
+                    f"📅 First Conversation: {stats.get('first_conversation', 'N/A')}\n"
+                    f"📅 Last Conversation: {stats.get('last_conversation', 'N/A')}"
+                )
+
+            if "recent" in args_lower:
+                context = searcher.get_recent_context("default_user", max_turns=10)
+                if not context:
+                    return "No recent conversations found."
+                return f"**Recent Context:**\n\n{context}"
+
+            results = searcher.search(args, user_id="default_user", limit=10)
+
+            if not results:
+                return f"No results found for: '{args}'"
+
+            lines = [f"**Search Results for '{args}':**\n"]
+            for i, r in enumerate(results, 1):
+                lines.append(f"{i}. [{r['role']}] {r['content'][:150]}...")
+                lines.append(f"   📅 {r['timestamp']}")
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"History search error: {e}"
+
+    # ── Excel Export ───────────────────────────────────────────────────────
+
+    def _handle_excel_export(self, args: str) -> str:
+        """Export data to Excel."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Excel Export:**\n\n"
+                "Usage:\n"
+                "  excel_export: transactions — Export transactions\n"
+                "  excel_export: budget — Export budget report\n"
+                "  excel_export: custom — Export custom data"
+            )
+
+        args_lower = args.lower()
+
+        try:
+            from .excel_export import get_excel_exporter
+            exporter = get_excel_exporter()
+            output_path = f"data/exports/{args_lower.replace(' ', '_')}.xlsx"
+
+            if "transaction" in args_lower:
+                from .budget_tracker import get_budget_tracker
+                tracker = get_budget_tracker()
+                transactions = tracker.get_transactions("default_user", limit=100)
+                data = [{"date": t.date, "type": t.transaction_type, "category": t.category,
+                        "description": t.description, "amount": t.amount, "payment": t.payment_method}
+                       for t in transactions]
+                success = exporter.export_to_excel(data, output_path, "Transactions")
+            elif "budget" in args_lower:
+                from .budget_tracker import get_budget_tracker
+                tracker = get_budget_tracker()
+                summary = tracker.get_monthly_summary("default_user")
+                data = [{"Metric": k, "Value": v} for k, v in summary.items() if not isinstance(v, dict)]
+                success = exporter.export_to_excel(data, output_path, "Budget Report")
+            else:
+                return "Export options: transactions, budget"
+
+            if success:
+                return f"✅ Data exported to: {output_path}"
+            else:
+                return "❌ Export failed. Check if openpyxl is installed."
+
+        except Exception as e:
+            return f"Export error: {e}"
+
+    # ── Notifications ──────────────────────────────────────────────────────
+
+    def _handle_notifications(self, args: str) -> str:
+        """Manage notifications and subscriptions."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Notifications:**\n\n"
+                "Usage:\n"
+                "  notifications: subscribe job_alert — Subscribe to job alerts\n"
+                "  notifications: subscribe exam_reminder — Subscribe to exam reminders\n"
+                "  notifications: subscribe weather_warning — Subscribe to weather alerts\n"
+                "  notifications: list — View your notifications\n"
+                "  notifications: unread — Count unread notifications"
+            )
+
+        args_lower = args.lower()
+
+        try:
+            from .notifications import get_notification_service
+            service = get_notification_service()
+            user_id = "default_user"
+
+            if "subscribe" in args_lower:
+                notif_type = args_lower.replace("subscribe", "").strip()
+                if not notif_type:
+                    return "Specify type: job_alert, exam_reminder, weather_warning, price_alert"
+                service.subscribe(user_id, notif_type)
+                return f"✅ Subscribed to: {notif_type}"
+
+            if "list" in args_lower:
+                notifications = service.get_notifications(user_id, limit=10)
+                if not notifications:
+                    return "No notifications yet. Subscribe to get alerts."
+                lines = ["**Your Notifications:**\n"]
+                for n in notifications:
+                    emoji = "🔴" if n.priority == "urgent" else "🟡" if n.priority == "high" else "🔵"
+                    status = "📭" if n.read else "📬"
+                    lines.append(f"{emoji}{status} {n.title}")
+                    lines.append(f"   {n.message[:100]}")
+                return "\n".join(lines)
+
+            if "unread" in args_lower:
+                count = service.get_unread_count(user_id)
+                return f"📬 You have {count} unread notification(s)."
+
+            return "Use: notifications: subscribe <type> | notifications: list | notifications: unread"
+
+        except Exception as e:
+            return f"Notification error: {e}"
+
+    # ── Multilingual Search ────────────────────────────────────────────────
+
+    def _handle_multilingual_search(self, args: str) -> str:
+        """Search knowledge base in Indian languages."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Multilingual Search:**\n\n"
+                "Usage:\n"
+                "  multilingual_search: rights hindi — Search in Hindi\n"
+                "  multilingual_search: emergency bengali — Search in Bengali\n"
+                "  multilingual_search: schemes tamil — Search in Tamil"
+            )
+
+        # Extract language from query
+        languages = ['hindi', 'bengali', 'tamil', 'telugu', 'marathi', 'gujarati', 'kannada', 'malayalam', 'common']
+        detected_lang = None
+        query = args
+
+        for lang in languages:
+            if lang in args.lower():
+                detected_lang = lang
+                query = args.lower().replace(lang, "").strip()
+                break
+
+        if not query:
+            query = args
+
+        try:
+            from .multilingual_kb import get_multilingual_kb
+            kb = get_multilingual_kb()
+            results = kb.search(query, language=detected_lang, top_k=5)
+
+            if not results:
+                available = ", ".join(kb.get_available_languages())
+                return f"No results found. Available languages: {available}"
+
+            lines = [f"**Search Results ({detected_lang or 'all languages'}):**\n"]
+            for r in results:
+                lines.append(f"**{r['title']}** [{r['language']}]")
+                lines.append(f"{r['content'][:300]}...")
+                lines.append("")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"Multilingual search error: {e}"
+
+    # ── Semantic Search ────────────────────────────────────────────────────
+
+    def _handle_semantic_search(self, args: str) -> str:
+        """Semantic search across knowledge base."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Semantic Search:**\n\n"
+                "Usage:\n"
+                "  semantic_search: what are my fundamental rights\n"
+                "  semantic_search: how to file a complaint"
+            )
+
+        try:
+            from .semantic_search import get_semantic_search
+            from .knowledge_base import get_knowledge_base
+
+            kb = get_knowledge_base()
+            search_engine = get_semantic_search()
+
+            # Prepare documents from knowledge base
+            docs = []
+            for domain, entries in kb.knowledge.items():
+                for entry in entries:
+                    docs.append({
+                        "title": entry["title"],
+                        "content": entry["content"],
+                        "tags": entry.get("tags", []),
+                        "domain": domain,
+                    })
+
+            if docs and not search_engine.semantic_engine.documents:
+                search_engine.add_documents(docs)
+
+            results = search_engine.search(args, top_k=3)
+
+            if not results:
+                return "No results found. Try rephrasing your query."
+
+            lines = [f"**Semantic Search Results:**\n"]
+            for r in results:
+                method = r.get("search_method", "unknown")
+                score = r.get("hybrid_score", r.get("semantic_score", 0))
+                lines.append(f"**{r.get('title', 'Untitled')}** (Score: {score:.2f})")
+                lines.append(f"{r.get('content', '')[:300]}...")
+                lines.append("")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"Semantic search error: {e}"
+
+    # ── Conversation Memory ────────────────────────────────────────────────
+
+    def _handle_conversation_memory(self, args: str) -> str:
+        """Access conversation summaries and context."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Conversation Memory:**\n\n"
+                "Usage:\n"
+                "  conversation_memory: summary — Get current session summary\n"
+                "  conversation_memory: recent — Recent sessions\n"
+                "  conversation_memory: context — Get context for LLM"
+            )
+
+        args_lower = args.lower()
+
+        try:
+            from .conversation_memory import get_conversation_memory
+            memory = get_conversation_memory()
+
+            if "summary" in args_lower:
+                summary = memory.get_latest_summary()
+                if summary:
+                    return (
+                        f"**Session Summary:**\n"
+                        f"📅 {summary.created_at}\n"
+                        f"📝 {summary.summary}\n"
+                        f"🔑 Key points: {'; '.join(summary.key_points[:3])}\n"
+                        f"💬 Turns: {summary.turn_count}"
+                    )
+                return "No summary available for current session."
+
+            if "recent" in args_lower:
+                sessions = memory.get_recent_sessions(limit=5)
+                if not sessions:
+                    return "No recent sessions found."
+                lines = ["**Recent Sessions:**\n"]
+                for s in sessions:
+                    lines.append(f"  📅 {s['started']} — {s['turn_count']} messages")
+                return "\n".join(lines)
+
+            if "context" in args_lower:
+                context = memory.get_context(max_turns=10)
+                if context:
+                    return f"**Conversation Context:**\n\n{context[:1500]}"
+                return "No context available."
+
+            stats = memory.get_stats()
+            return (
+                f"**Memory Stats:**\n"
+                f"📝 Total Turns: {stats['total_turns']}\n"
+                f"💬 Sessions: {stats['total_sessions']}\n"
+                f"📋 Summaries: {stats['total_summaries']}\n"
+                f"👤 User Facts: {stats['total_user_facts']}"
+            )
+
+        except Exception as e:
+            return f"Memory error: {e}"
 
     # ── Training Data Pipeline ──────────────────────────────────────────────
 
