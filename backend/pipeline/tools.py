@@ -403,6 +403,24 @@ class ToolRegistry:
             "usage": "driving_license: apply | driving_license: renew | driving_license: international | driving_license: test booking",
             "handler": self._handle_driving_license,
         }
+        self.tools["knowledge"] = {
+            "name": "knowledge",
+            "description": (
+                "Search the Indian Knowledge Base for curated information on Indian constitution, "
+                "legal rights, RTI, consumer protection, health, education, labour laws, and environment."
+            ),
+            "usage": "knowledge: <query> | knowledge: fundamental rights | knowledge: RTI process | knowledge: consumer protection",
+            "handler": self._handle_knowledge,
+        }
+        self.tools["transliterate"] = {
+            "name": "transliterate",
+            "description": (
+                "Transliterate Roman/Hinglish text to any Indian script. "
+                "Converts 'namaste' to Devanagari, 'vanakkam' to Tamil, etc."
+            ),
+            "usage": "transliterate: namaste to devanagari | transliterate: hello to bengali | transliterate: namaskaram to tamil",
+            "handler": self._handle_transliterate,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -2839,11 +2857,11 @@ class ToolRegistry:
             f"  1. Find your Consumer Number (on previous bill)\n"
             f"  2. Enter on payment portal/app\n"
             f"  3. Verify name and amount\n"
-            f"  4. Pay → Save receipt\n\n"
-            f"💡 **Tips:**\n"
-            f"  - Set up auto-pay to avoid late fees\n"
-            f"  - Late fee: Rs 100-500 per month\n"
-            f"  - Check bill for subsidized rates (BPL families)"
+            f"  4. Pay → Save receipt\n\n"                f"💡 **Tips:**\n"
+                f"  - Set up auto-pay to avoid late fees\n"
+                f"  - Late fee: Rs 100-500 per month\n"
+                f"  - Check bill for subsidized rates (BPL families)\n\n"
+                f"⚠️ **Disclaimer:** This is general guidance only. Always verify payment details on the official discom website. Zenix is not responsible for payment errors. Never share OTPs or passwords with anyone."
         )
 
     # ── Driving License Guidance ─────────────────────────────────────────────
@@ -3026,6 +3044,116 @@ class ToolRegistry:
             )
 
         return self._handle_driving_license("apply")
+
+    # ── Knowledge Base Search ────────────────────────────────────────────
+
+    def _handle_knowledge(self, args: str) -> str:
+        """Search the Indian knowledge base for curated legal, health, education content."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Indian Knowledge Base:**\n\n"
+                "Available domains:\n"
+                "  - Constitution: Fundamental Rights, Duties, DPSP, Constitutional Bodies\n"
+                "  - Legal Rights: RTI, Consumer Protection, Criminal Laws, Domestic Violence, FIR\n"
+                "  - Health: Ayushman Bharat, Jan Aushadhi, COVID, Emergency Numbers\n"
+                "  - Education: RTE, Scholarships, NEP 2020, NTA Exams\n"
+                "  - Consumer Rights: DPDP Act, Cybercrime Reporting\n"
+                "  - Labour Laws: Minimum Wages, EPF, ESI, Maternity Benefits\n"
+                "  - Environment: Environmental Laws, Forest Rights Act\n\n"
+                "Usage: knowledge: <query> | knowledge: fundamental rights | knowledge: RTI process"
+            )
+
+        try:
+            from .knowledge_base import get_knowledge_base
+            kb = get_knowledge_base()
+            results = kb.search(args, top_k=3)
+
+            if not results:
+                return (
+                    f"No results found for: '{args}'\n"
+                    f"Try: knowledge: fundamental rights | knowledge: RTI | knowledge: consumer protection"
+                )
+
+            lines = [f"**Knowledge Base Results:**\n"]
+            for i, r in enumerate(results, 1):
+                domain_label = r["domain"].replace("_", " ").title()
+                lines.append(f"**{i}. {r['title']}** [{domain_label}]")
+                # Show first 500 chars of content
+                content_preview = r["content"][:500]
+                if len(r["content"]) > 500:
+                    content_preview += "..."
+                lines.append(content_preview)
+                lines.append("")
+
+            lines.append("⚠️ *This is general information. For specific legal/medical advice, consult a qualified professional.*")
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"Knowledge base error: {e}"
+
+    # ── Transliteration Tool ───────────────────────────────────────────────
+
+    def _handle_transliterate(self, args: str) -> str:
+        """Transliterate Roman text to Indic scripts."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Transliteration Tool:**\n\n"
+                "Usage:\n"
+                "  transliterate: namaste to devanagari\n"
+                "  transliterate: namaskaram to tamil\n"
+                "  transliterate: hello to bengali\n"
+                "  transliterate: naman to kannada\n\n"
+                "Supported scripts: devanagari, bengali, tamil, telugu, gujarati, kannada, malayalam, odia, gurmukhi"
+            )
+
+        try:
+            from .transliteration import transliterate as do_transliterate
+            from .transliteration import is_indic_script, SCRIPT_MAP
+
+            # Parse: <text> to <script>
+            import re
+            match = re.match(r'(.+?)\s+to\s+(\w+)$', args, re.IGNORECASE)
+            if not match:
+                # Try auto-detect
+            text_to_convert = args.strip()
+            target_script = "devanagari"  # default
+            if match:
+                text_to_convert = match.group(1).strip()
+                target_script = match.group(2).strip().lower()
+
+            if not text_to_convert:
+                return "Error: No text provided for transliteration."
+
+            # Already in Indic script?
+            if is_indic_script(text_to_convert):
+                return f"Text is already in Indic script: {text_to_convert}"
+
+            # Valid script?
+            if target_script not in SCRIPT_MAP:
+                return (
+                    f"Error: Unknown script '{target_script}'.\n"
+                    f"Supported scripts: {', '.join(SCRIPT_MAP.keys())}"
+                )
+
+            result = do_transliterate(text_to_convert, target_script)
+
+            if result and result != text_to_convert:
+                return (
+                    f"**Transliteration ({target_script.title()}):**\n"
+                    f"  Original: {text_to_convert}\n"
+                    f"  Script: {result}"
+                )
+            else:
+                return (
+                    f"Could not transliterate '{text_to_convert}' to {target_script}.\n"
+                    f"Please ensure it is Romanized Indian text.\n"
+                    f"Supported scripts: {', '.join(SCRIPT_MAP.keys())}"
+                )
+
+        except Exception as e:
+            return f"Transliteration error: {e}"
 
     # ── Training Data Pipeline ──────────────────────────────────────────────
 
@@ -4000,6 +4128,7 @@ class ToolRegistry:
             f"  Year {years} Interest: ~Rs {total_interest * 0.1:,.0f} (declines over time)\n"
             f"\n"
             f"*Tip: Prepaying even 1 extra EMI/year can save lakhs in interest!*"
+            f"\n\n⚠️ **Disclaimer:** This is an approximate calculation for reference only. Actual EMI may vary based on processing fees, prepayments, floating rates, and lender policies. Always confirm with your bank or financial institution before taking a loan."
         )
 
     # ── Income Tax Calculator ────────────────────────────────────────────────
@@ -4136,6 +4265,7 @@ class ToolRegistry:
             f"\n  💡 Tip: New regime has lower rates but no deductions. "
             f"Old regime is better if you have high deductions (80C + HRA + 80D > ₹2L).",
             f"\n  📝 *Calculations are indicative. Consult a CA for exact filing.*",
+            f"\n  ⚠️ **Disclaimer:** This is for informational purposes only and does not constitute tax advice. Tax laws change frequently. Always consult a qualified Chartered Accountant or tax advisor for accurate tax planning and filing.",
         ])
 
         return "\n".join(lines)

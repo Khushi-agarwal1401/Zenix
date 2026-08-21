@@ -101,6 +101,30 @@ def detect_harmful(text: str) -> Tuple[bool, str]:
     return False, ""
 
 
+def detect_roman_indic(text: str) -> bool:
+    """
+    Detect if input contains Romanized Indic text (Hinglish/Tanglish/etc.).
+    Checks for common patterns like 'namaste', 'shukriya', 'dhanyavaad', etc.
+    """
+    roman_indic_words = [
+        'namaste', 'namaskar', 'namaskaram', 'vanakkam', 'namaskara',
+        'shukriya', 'dhanyavaad', 'dhanyavad', 'bohot', 'bahut', 'acha',
+        'theek', 'kaise', 'kya', 'haan', 'nahi', 'nahin', 'ji', 'jihaan',
+        'aap', 'tum', 'mai', 'hum', 'unka', 'uska', 'yeh', 'woh', 'karo',
+        'karo', 'bolo', 'suno', 'dekho', 'jao', 'aao', 'khaana', 'paani',
+        'ghar', 'bahar', 'andar', 'upar', 'neeche', 'saath', 'alag',
+        'dost', 'bhai', 'behen', 'maa', 'papa', 'beta', 'beti',
+        'accha', 'bura', 'sundar', 'chhota', 'bada', 'tez', 'dheere',
+        'subah', 'shaam', 'raat', 'din', 'mahina', 'saal', 'aaj', 'kal',
+        'parson', 'abhi', 'phir', 'magar', 'lekin', 'aur', 'ya', 'ki',
+        'ka', 'ke', 'ko', 'se', 'mein', 'pe', 'par', 'ko', 'ne',
+    ]
+    text_lower = text.lower()
+    words = set(text_lower.split())
+    matches = words.intersection(set(roman_indic_words))
+    return len(matches) >= 2
+
+
 def guard_input(text: str) -> Tuple[str, bool, str]:
     """
     Full input guard pipeline:
@@ -108,6 +132,7 @@ def guard_input(text: str) -> Tuple[str, bool, str]:
     2. Detect crisis (return crisis response, don't block)
     3. Detect injection
     4. Detect harmful content
+    5. Detect Romanized Indic text for transliteration hints
 
     Returns:
         (sanitized_text, is_blocked, block_reason)

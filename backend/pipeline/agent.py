@@ -204,6 +204,22 @@ TOOL_KEYWORDS = {
     "abuse stats:": "abuse",
     "session stats:": "abuse",
     "spam check:": "abuse",
+    "knowledge:": "knowledge",
+    "knowledge search:": "knowledge",
+    "indian law:": "knowledge",
+    "my rights:": "knowledge",
+    "legal rights:": "knowledge",
+    "rti:": "knowledge",
+    "consumer protection:": "knowledge",
+    "constitution:": "knowledge",
+    "labour law:": "knowledge",
+    "environment law:": "knowledge",
+    "education rights:": "knowledge",
+    "transliterate:": "transliterate",
+    "transliteration:": "transliterate",
+    "write in hindi:": "transliterate",
+    "write in tamil:": "transliterate",
+    "hindi me likho:": "transliterate",
     "medicine:": "medicine",
     "drug:": "medicine",
     "tablet:": "medicine",
@@ -283,7 +299,12 @@ class AgentModule(PipelineModule):
             f"- '72 fahrenheit to celsius' → Step 1: unit: 72 fahrenheit to celsius\n"
             f"- '100 usd to inr' → Step 1: currency: 100 usd to inr\n"
             f"- '5000 rupees to dollars' → Step 1: currency: 5000 inr to usd\n"
-            f"- '50 euros to pounds' → Step 1: currency: 50 eur to gbp\n\n"
+            f"- '50 euros to pounds' → Step 1: currency: 50 eur to gbp\n"
+            f"- 'what are my fundamental rights' → Step 1: knowledge: fundamental rights\n"
+            f"- 'how to file RTI' → Step 1: knowledge: RTI process\n"
+            f"- 'consumer protection law' → Step 1: knowledge: consumer protection\n"
+            f"- 'transliterate namaste to devanagari' → Step 1: transliterate: namaste to devanagari\n"
+            f"- 'write namaskaram in tamil script' → Step 1: transliterate: namaskaram to tamil\n\n"
             f"If the query is simple and only needs one tool, return a single step.\n"
             f"Plan:"
         )
