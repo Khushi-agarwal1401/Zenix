@@ -248,6 +248,40 @@ TOOL_KEYWORDS = {
     "international dl:": "driving_license",
     "rto:": "driving_license",
     "parivahan:": "driving_license",
+    "sports:": "sports",
+    "live score:": "sports",
+    "ipl score:": "sports",
+    "cricket score:": "sports",
+    "match score:": "sports",
+    "ipl live:": "sports",
+    "football score:": "sports",
+    "isl score:": "sports",
+    "pkl score:": "sports",
+    "kabaddi score:": "sports",
+    "govt_jobs:": "govt_jobs",
+    "government job:": "govt_jobs",
+    "latest notification:": "govt_jobs",
+    "upsc notification:": "govt_jobs",
+    "ssc notification:": "govt_jobs",
+    "ibps notification:": "govt_jobs",
+    "railway notification:": "govt_jobs",
+    "exam notification:": "govt_jobs",
+    "admit card:": "govt_jobs",
+    "government exam:": "govt_jobs",
+    "state_info:": "state_info",
+    "state schemes:": "state_info",
+    "state holidays:": "state_info",
+    "state info:": "state_info",
+    "state festival:": "state_info",
+    "cm of:": "state_info",
+    "capital of:": "state_info",
+    "property:": "property",
+    "land records:": "property",
+    "verify title:": "property",
+    "property tax:": "property",
+    "encumbrance:": "property",
+    "mutation:": "property",
+    "land verification:": "property",
     "weather 7 day:": "weather",
     "forecast:": "weather",
 }
@@ -304,7 +338,19 @@ class AgentModule(PipelineModule):
             f"- 'how to file RTI' → Step 1: knowledge: RTI process\n"
             f"- 'consumer protection law' → Step 1: knowledge: consumer protection\n"
             f"- 'transliterate namaste to devanagari' → Step 1: transliterate: namaste to devanagari\n"
-            f"- 'write namaskaram in tamil script' → Step 1: transliterate: namaskaram to tamil\n\n"
+            f"- 'write namaskaram in tamil script' → Step 1: transliterate: namaskaram to tamil\n"
+            f"- 'live cricket score' → Step 1: sports: live cricket\n"
+            f"- 'IPL score' → Step 1: sports: IPL score\n"
+            f"- 'latest govt jobs' → Step 1: govt_jobs: latest\n"
+            f"- 'SSC CHSL notification' → Step 1: govt_jobs: ssc chsl\n"
+            f"- 'UPSC exam date' → Step 1: govt_jobs: upsc\n"
+            f"- 'schemes in Maharashtra' → Step 1: state_info: Maharashtra\n"
+            f"- 'CM of Tamil Nadu' → Step 1: state_info: Tamil Nadu\n"
+            f"- 'holidays in Kerala' → Step 1: state_info: holidays Kerala\n"
+            f"- 'verify property title' → Step 1: property: verify title\n"
+            f"- 'land records Delhi' → Step 1: property: land records Delhi\n"
+            f"- 'mutation process' → Step 1: property: mutation\n"
+            f"- 'property tax Mumbai' → Step 1: property: tax\n\n"
             f"If the query is simple and only needs one tool, return a single step.\n"
             f"Plan:"
         )

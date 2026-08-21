@@ -421,6 +421,43 @@ class ToolRegistry:
             "usage": "transliterate: namaste to devanagari | transliterate: hello to bengali | transliterate: namaskaram to tamil",
             "handler": self._handle_transliterate,
         }
+        self.tools["sports"] = {
+            "name": "sports",
+            "description": (
+                "Live sports scores and schedules: cricket (IPL, ICC, Ranji), "
+                "football (ISL, EPL, La Liga), kabaddi (PKL), and more."
+            ),
+            "usage": "sports: live cricket | sports: IPL score | sports: India vs Australia | sports: ISL schedule",
+            "handler": self._handle_sports,
+        }
+        self.tools["govt_jobs"] = {
+            "name": "govt_jobs",
+            "description": (
+                "Government job listings, exam notifications, and admit card updates. "
+                "Covers UPSC, SSC, Banking (IBPS/SBI), Railway, State PSC, and more."
+            ),
+            "usage": "govt_jobs: latest | govt_jobs: upsc | govt_jobs: ssc chsl | govt_jobs: banking | govt_jobs: railway",
+            "handler": self._handle_govt_jobs,
+        }
+        self.tools["state_info"] = {
+            "name": "state_info",
+            "description": (
+                "Indian state-specific information: government schemes, holidays, "
+                "regional festivals, state symbols, CM, Governor, capital, language."
+            ),
+            "usage": "state_info: Maharashtra | state_info: schemes Delhi | state_info: holidays Kerala | state_info: Tamil Nadu",
+            "handler": self._handle_state_info,
+        }
+        self.tools["property"] = {
+            "name": "property",
+            "description": (
+                "Property verification and land records guidance. "
+                "How to check land records online, verify property title, mutation status, "
+                "encumbrance certificate, and property tax payment."
+            ),
+            "usage": "property: verify title | property: land records Maharashtra | property: mutation | property: encumbrance | property: tax",
+            "handler": self._handle_property,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -3154,6 +3191,470 @@ class ToolRegistry:
 
         except Exception as e:
             return f"Transliteration error: {e}"
+
+    # ── Sports Scores ───────────────────────────────────────────────────────
+
+    def _handle_sports(self, args: str) -> str:
+        """Live sports scores and schedules using web search."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Sports Scores & Schedules:**\n\n"
+                "Usage:\n"
+                "  sports: live cricket — Live cricket scores\n"
+                "  sports: IPL score — IPL match scores\n"
+                "  sports: India vs Australia — Specific match\n"
+                "  sports: ISL football — Indian Super League\n"
+                "  sports: PKL kabaddi — Pro Kabaddi League\n"
+                "  sports: schedule football — Upcoming matches"
+            )
+
+        args_lower = args.lower()
+
+        # Detect sport type
+        is_cricket = any(w in args_lower for w in ["cricket", "ipl", "icc", "ranji", "odi", "t20", "test match"])
+        is_football = any(w in args_lower for w in ["football", "soccer", "isl", "epl", "la liga", "fifa"])
+        is_kabaddi = any(w in args_lower for w in ["kabaddi", "pkl", "pro kabaddi"])
+        is_tennis = any(w in args_lower for w in ["tennis", "atp", "wta", "grand slam"])
+
+        # Build search query
+        sport_label = "cricket"
+        if is_football:
+            sport_label = "football"
+        elif is_kabaddi:
+            sport_label = "kabaddi"
+        elif is_tennis:
+            sport_label = "tennis"
+
+        # Use web_search tool for live scores
+        search_query = f"{args} live score {sport_label} India"
+        try:
+            return self._handle_web_search(search_query)
+        except Exception as e:
+            return f"Sports score error: {e}. Try: web_search: {args} live score"
+
+    # ── Government Jobs & Exam Notifications ─────────────────────────────────
+
+    def _handle_govt_jobs(self, args: str) -> str:
+        """Government job listings and exam notifications."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Government Jobs & Exam Notifications:**\n\n"
+                "Usage:\n"
+                "  govt_jobs: latest — Latest govt job notifications\n"
+                "  govt_jobs: upsc — UPSC exams (CSE, IFS, CMS)\n"
+                "  govt_jobs: ssc chsl — SSC CHSL, CGL, MTS notifications\n"
+                "  govt_jobs: banking — IBPS PO, Clerk, SBI notifications\n"
+                "  govt_jobs: railway — RRB NTPC, Group D notifications\n"
+                "  govt_jobs: state psc — State PSC exams\n"
+                "  govt_jobs: teaching — CTET, DSSSB, KVS notifications\n\n"
+                "📌 Key Portals:\n"
+                "  - ssc.nic.in (SSC exams)\n"
+                "  - upsc.gov.in (UPSC exams)\n"
+                "  - ibps.in (Banking exams)\n"
+                "  - rrbcdg.gov.in (Railway exams)\n"
+                "  - employmentnews.gov.in (Job news)\n"
+                "  - freejobalert.com (All notifications)"
+            )
+
+        args_lower = args.lower()
+
+        # Detect exam category
+        if "upsc" in args_lower:
+            category = "UPSC"
+            portals = "upsc.gov.in"
+        elif "ssc" in args_lower:
+            category = "SSC"
+            portals = "ssc.nic.in"
+        elif any(w in args_lower for w in ["banking", "ibps", "sbi", "bank po", "bank clerk"]):
+            category = "Banking"
+            portals = "ibps.in"
+        elif any(w in args_lower for w in ["railway", "rrb", "ntpc", "group d"]):
+            category = "Railway"
+            portals = "rrbcdg.gov.in"
+        elif any(w in args_lower for w in ["state", "psc"]):
+            category = "State PSC"
+            portals = " respective state PSC website"
+        elif any(w in args_lower for w in ["teaching", "ctet", "dsssb", "kvs", "net"]):
+            category = "Teaching"
+            portals = "ctet.nic.in"
+        elif any(w in args_lower for w in ["ssc chsl", "ssc cgl", "ssc mts", "ssc gd"]):
+            category = f"SSC {args.split()[-1].upper() if len(args.split()) > 1 else 'CGL'}"
+            portals = "ssc.nic.in"
+        else:
+            category = "Government Jobs"
+            portals = "employmentnews.gov.in, freejobalert.com"
+
+        # Use web_search for latest notifications
+        search_query = f"{category} latest notification 2026 apply online"
+        try:
+            result = self._handle_web_search(search_query)
+            # Append portal info
+            return f"📋 **{category} Notifications:**\n\nPortal: {portals}\n\n{result}\n\n📌 Apply at: {portals}"
+        except Exception:
+            return f"Could not fetch {category} notifications. Check: {portals}"
+
+    # ── State-Specific Information ───────────────────────────────────────────
+
+    def _handle_state_info(self, args: str) -> str:
+        """Indian state-specific schemes, holidays, and info."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Indian State Information:**\n\n"
+                "Usage:\n"
+                "  state_info: Maharashtra — State details, schemes, holidays\n"
+                "  state_info: schemes Delhi — Government schemes in Delhi\n"
+                "  state_info: holidays Kerala — Kerala holidays and festivals\n"
+                "  state_info: Tamil Nadu — TN state info"
+            )
+
+        args_lower = args.lower()
+
+        # State database (abbreviated — key info for each state)
+        STATES_DB = {
+            "maharashtra": {
+                "capital": "Mumbai", "cm": "Devendra Fadnavis", "gov": "Bhagat Singh Koshyari",
+                "language": "Marathi", "symbols": "Flower: Jarul, Bird: Green Pigeon, Animal: Indian Giant Squirrel",
+                "holidays": ["Gudi Padwa (Marathi New Year)", "Ganesh Chaturthi", "Diwali", "Dussehra", "Eid", "Christmas"],
+                "schemes": ["Maha Nirvana Yojana", "Mukhyamantri Saur Krishi Vahini", "Jalyukt Shivar Abhiyan", "MahaSCST Hulfund", "Ladki Bahin Yojana"],
+            },
+            "delhi": {
+                "capital": "New Delhi", "cm": "Atishi", "gov": "Vinai Kumar Saxena",
+                "language": "Hindi, English, Urdu", "symbols": "Flower: Dhua, Bird: House Sparrow, Animal: Nilgai",
+                "holidays": ["Republic Day", "Independence Day", "Diwali", "Eid", "Christmas", "Holi"],
+                "schemes": ["Free Water (20kL)", "Free Electricity (200 units)", "Mukhyamantri Seva Yojana", "Farishte Scheme", "DTC Free Bus for Women"],
+            },
+            "uttar pradesh": {
+                "capital": "Lucknow", "cm": "Yogi Adityanath", "gov": "Anandiben Patel",
+                "language": "Hindi", "symbols": "Flower: Palash, Bird: Sarus Crane, Animal: Swamp Deer",
+                "holidays": ["Diwali", "Holi", "Eid", "Christmas", "Janmashtami", "Makar Sankranti"],
+                "schemes": ["UP Free Laptop Yojana", "Kanya Sumangala Yojana", "Udyog Bandhu", "One District One Product", "Ayushman Bharat"],
+            },
+            "karnataka": {
+                "capital": "Bengaluru", "cm": "Siddaramaiah", "gov": "Thawarchand Gehlot",
+                "language": "Kannada", "symbols": "Flower: Lotus, Bird: Indian Roller, Animal: Elephant",
+                "holidays": ["Karnataka Rajyotsava", "Ugadi", "Diwali", "Eid", "Christmas", "Makar Sankranti"],
+                "schemes": ["Anna Bhagya", "Gruhalakshmi", "Yuva Nidhi", "Shakti Scheme (Free Bus)", "Raitha Vidya Nidhi"],
+            },
+            "tamil nadu": {
+                "capital": "Chennai", "cm": "M.K. Stalin", "gov": "R.N. Ravi",
+                "language": "Tamil", "symbols": "Flower: Glory Lily, Bird: Emerald Dove, Animal: Nilgiri Tahr",
+                "holidays": ["Pongal", "Diwali", "Eid", "Christmas", "Tamil New Year", "Deepavali"],
+                "schemes": ["MGR Free Breakfast Scheme", "Kalaignar Centenary Library", "Naan Mudhalvan", "TN Metro", "Amma Two-Wheeler"],
+            },
+            "west bengal": {
+                "capital": "Kolkata", "cm": "Mamata Banerjee", "gov": "C.V. Ananda Bose",
+                "language": "Bengali", "symbols": "Flower: Night-flowering Jasmine, Bird: White-throated Kingfisher, Animal: Fishing Cat",
+                "holidays": ["Durga Puja", "Diwali", "Eid", "Christmas", "Kali Puja", "Pohela Boishakh"],
+                "schemes": ["Lakshmi Bhandar", "Duare Sarkar", "Swasthya Sathi", "Sabooj Sathi", "Kanyashree"],
+            },
+            "rajasthan": {
+                "capital": "Jaipur", "cm": "Bhajan Lal Sharma", "gov": "Kalyan Singh (acting)",
+                "language": "Hindi, Rajasthani", "symbols": "Flower: Rohida, Bird: Great Indian Bustard, Animal: Camel",
+                "holidays": ["Diwali", "Holi", "Gangaur", "Eid", "Christmas", "Teej"],
+                "schemes": ["Chiranjeevi Yojana", "Indira Gandhi Free Phone", "Lado Protsahan", "Mukhyamantri Kisan Urja", "Lakhpati Didi"],
+            },
+            "gujarat": {
+                "capital": "Gandhinagar", "cm": "Bhupendra Patel", "gov": "Acharya Devvrat",
+                "language": "Gujarati", "symbols": "Flower: Marigold, Bird: Greater Flamingo, Animal: Asiatic Lion",
+                "holidays": ["Uttarayan", "Diwali", "Navratri", "Eid", "Christmas", "Makar Sankranti"],
+                "schemes": ["Mukhyamantri Mahila Utkarsh Yojana", "Kutir", "Maa Annapurna Yojana", "Gujarat Solar Rooftop", "Van Dhan Vikas"],
+            },
+            "madhya pradesh": {
+                "capital": "Bhopal", "cm": "Mohan Yadav", "gov": "Mangubhai Patel",
+                "language": "Hindi", "symbols": "Flower: Lily, Bird: Indian Paradise Flycatcher, Animal: Barasingha",
+                "holidays": ["Diwali", "Holi", "Eid", "Christmas", "Navratri", "Janmashtami"],
+                "schemes": ["Ladli Bahna Yojana", "Mukhyamantri Udyam Kranti", "Mahila Udyami", "Jal Jeevan Mission", "CM Rise School"],
+            },
+            "bihar": {
+                "capital": "Patna", "cm": "Nitish Kumar", "gov": "Rajendra Arlekar",
+                "language": "Hindi, Bhojpuri", "symbols": "Flower: Kachnar, Bird: Indian Rhinoceros, Animal: Gaur",
+                "holidays": ["Diwali", "Holi", "Chhath Puja", "Eid", "Christmas", "Sama-Chakeva"],
+                "schemes": ["Mukhyamantri Kanya Utthan", "Mukhyamantri Protsahan", "Mukhyamantri Balika Cycle", "Saat Nischay Yojana", "Jal-Jeevan-Hariyali"],
+            },
+            "andhra pradesh": {
+                "capital": "Amaravati", "cm": "N. Chandrababu Naidu", "gov": "S. Abdul Nazeer",
+                "language": "Telugu", "symbols": "Flower: Water Lily, Bird: Indian Roller, Animal: Blackbuck",
+                "holidays": ["Ugadi", "Sankranti", "Diwali", "Eid", "Christmas", "Vinayaka Chavithi"],
+                "schemes": ["Amma Vodi", "NTR Vidyadeewana", "Jagananna Vidya Deewana", "YSR Arogyasri", "Chandranna Bima"],
+            },
+            "telangana": {
+                "capital": "Hyderabad", "cm": "Revanth Reddy", "gov": "Jishnu Dev Varma",
+                "language": "Telugu", "symbols": "Flower: Tangidi, Bird: Indian Roller, Animal: Spotted Deer",
+                "holidays": ["Bathukamma", "Bonalu", "Diwali", "Eid", "Christmas", "Ugadi"],
+                "schemes": ["Rythu Bandhu", "Rythu Bharosa", "KCR Kit", "Kalyana Lakshmi", "Mission Bhagiratha"],
+            },
+            "kerala": {
+                "capital": "Thiruvananthapuram", "cm": "Pinarayi Vijayan", "gov": "Arif Mohammed Khan",
+                "language": "Malayalam", "symbols": "Flower: Kanikkonna, Bird: Great Hornbill, Animal: Elephant",
+                "holidays": ["Onam", "Vishu", "Diwali", "Eid", "Christmas", "Easter"],
+                "schemes": ["LIFE Mission", "KASP (Ayushman)", "Munnani", "She-Lodge", "K-FON (Free Internet)"],
+            },
+            "punjab": {
+                "capital": "Chandigarh", "cm": "Bhagwant Mann", "gov": "Banwarilal Purohit",
+                "language": "Punjabi", "symbols": "Flower: Gladiolus, Bird: Baaz, Animal: Blackbuck",
+                "holidays": ["Baisakhi", "Lohri", "Diwali", "Eid", "Christmas", "Guru Nanak Jayanti"],
+                "schemes": ["Aasra Pension", "Bhagat Puran Singh Sehat Bima", "Mukh Mantri Sehat Bima", "Farmer Debt Waiver", "Ghar Ghar Naukri"],
+            },
+            "haryana": {
+                "capital": "Chandigarh", "cm": "Nayab Singh Saini", "gov": "Bandaru Dattatreya",
+                "language": "Hindi, Haryanvi", "symbols": "Flower: Lotus, Bird: Black Francolin, Animal: Blackbuck",
+                "holidays": ["Diwali", "Holi", "Eid", "Christmas", "Baisakhi", "Lohri"],
+                "schemes": ["Lado Lakshmi", "Mhara Gaon Jagga Gaon", "e-Shram Card Benefits", "Mukhyamantri Vivah Shagun", "Saksham Yuva"],
+            },
+            "odisha": {
+                "capital": "Bhubaneswar", "cm": "Mohan Charan Majhi", "gov": "Raghubar Das",
+                "language": "Odia", "symbols": "Flower: Water Lily, Bird: Blue Jay, Animal: Sambar Deer",
+                "holidays": ["Raja Parba", "Diwali", "Eid", "Christmas", "Rath Yatra", "Nuakhai"],
+                "schemes": ["KALIA Yojana", "Mo School Abhiyan", "Mo College Abhiyan", "Jaga Mission", "Odisha Millets Mission"],
+            },
+        }
+
+        # Normalize state name
+        state_name = None
+        for key in STATES_DB:
+            if key in args_lower:
+                state_name = key
+                break
+
+        # Check for specific queries
+        is_schemes = any(w in args_lower for w in ["scheme", "yojana", "government scheme"])
+        is_holidays = any(w in args_lower for w in ["holiday", "festival", "chutti"])
+
+        if not state_name:
+            # Try partial match
+            for key in STATES_DB:
+                if any(part in args_lower for part in key.split()):
+                    state_name = key
+                    break
+
+        if not state_name:
+            states_list = ", ".join(sorted(STATES_DB.keys()))
+            return f"Could not identify state from: '{args}'\nAvailable states: {states_list}"
+
+        state = STATES_DB[state_name]
+
+        lines = [f"**{state_name.title()} — State Information:**\n"]
+        lines.append(f"🏛️ Capital: {state['capital']}")
+        lines.append(f"👤 CM: {state['cm']}")
+        lines.append(f"👔 Governor: {state['gov']}")
+        lines.append(f"🗣️ Language: {state['language']}")
+        lines.append(f"Symbol: {state['symbols']}")
+
+        if is_schemes or not (is_schemes or is_holidays):
+            lines.append(f"\n📋 **Government Schemes:**")
+            for s in state['schemes']:
+                lines.append(f"  - {s}")
+
+        if is_holidays or not (is_schemes or is_holidays):
+            lines.append(f"\n📅 **Key Festivals/Holidays:**")
+            for h in state['holidays']:
+                lines.append(f"  - {h}")
+
+        lines.append(f"\n💡 Check {state_name.title()} govt portal for latest schemes: {state_name.replace(' ', '')}.gov.in")
+        return "\n".join(lines)
+
+    # ── Property Verification & Land Records ─────────────────────────────────
+
+    def _handle_property(self, args: str) -> str:
+        """Property verification and land records guidance."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Property Verification & Land Records:**\n\n"
+                "Usage:\n"
+                "  property: verify title — How to verify property title\n"
+                "  property: land records Maharashtra — Check land records online\n"
+                "  property: mutation — Mutation application process\n"
+                "  property: encumbrance — Get encumbrance certificate\n"
+                "  property: tax — Pay property tax online\n"
+                "  property: check land — Check land ownership details\n\n"
+                "📌 Key Portals:\n"
+                "  - landrecords.gov.in (Central land records)\n"
+                "  - Registration offices for EC and sale deed\n"
+                "  - State-specific portals (see below)"
+            )
+
+        args_lower = args.lower()
+
+        # Detect action
+        is_title = any(w in args_lower for w in ["title", "verify title", "title verification", "ownership"])
+        is_land = any(w in args_lower for w in ["land record", "land records", "khasra", "khatian", "7/12", "pahani"])
+        is_mutation = any(w in args_lower for w in ["mutation", "transfer", "namantaran"])
+        is_encumbrance = any(w in args_lower for w in ["encumbrance", "ec certificate", "encumbrance certificate"])
+        is_tax = any(w in args_lower for w in ["tax", "property tax", "property tax pay"])
+
+        if is_title:
+            return (
+                "**How to Verify Property Title:**\n\n"
+                "📋 **Step-by-Step Verification:**\n\n"
+                "1. **Check Sale Deed (Sale Agreement):**\n"
+                "   - Verify seller's name matches on deed\n"
+                "   - Check chain of ownership (previous sales)\n"
+                "   - Verify property description (plot no, area, address)\n\n"
+                "2. **Encumbrance Certificate (EC):**\n"
+                "   - Visit Sub-Registrar office\n"
+                "   - Apply online at registration.gov.in\n"
+                "   - Fee: Rs 15-50 per year of search\n"
+                "   - Shows all registered transactions on property\n\n"
+                "3. **Title Search (30 years):**\n"
+                "   - Check last 30 years of ownership history\n"
+                "   - Verify no court disputes or litigation\n"
+                "   - Check for any existing mortgages or liens\n\n"
+                "4. **Revenue Records:**\n"
+                "   - Check 7/12 extract (Maharashtra) or equivalent\n"
+                "   - Verify land type and usage rights\n"
+                "   - Check mutation records\n\n"
+                "5. **Physical Verification:**\n"
+                "   - Visit the property\n"
+                "   - Check boundary walls, fencing\n"
+                "   - Talk to neighbours\n"
+                "   - Verify plot dimensions match deed\n\n"
+                "6. **Approvals & NOCs:**\n"
+                "   - Building approval plan\n"
+                "   - Environmental clearance (if applicable)\n"
+                "   - NOC from society (if apartment)\n"
+                "   - Fire safety certificate\n\n"
+                "⚠️ **Always hire a property lawyer for verification. Cost: Rs 5,000-15,000**\n"
+                "📌 **Tip: Use RERA registration check for under-construction properties**"
+            )
+
+        if is_land:
+            # State-wise land records portals
+            state_portals = {
+                "maharashtra": "bhulekh.mahabhumi.gov.in (7/12 and Masik Utara)",
+                "delhi": "delhiland.gov.in",
+                "uttar pradesh": "upbhulekh.gov.in",
+                "karnataka": "bhoomi.karnataka.gov.in",
+                "tamil nadu": "eservices.tn.gov.in/eservicesnew/land", 
+                "rajasthan": "apnakhata.raj.nic.in",
+                "gujarat": "anyror.gujarat.gov.in",
+                "andhra pradesh": "meebhoomi.ap.gov.in",
+                "telangana": "dharani.telangana.gov.in",
+                "west bengal": "banglarbhumi.gov.in",
+                "bihar": "biharbhumi.gov.in",
+                "madhya pradesh": "mpbhulekh.gov.in",
+                "odisha": "bhulekh.ori.nic.in",
+                "jharkhand": "jjlc.nic.in",
+                "chhattisgarh": "lalpurja.cgstate.gov.in",
+                "punjab": "punjabrevenue.gov.in",
+                "haryana": "halcg.gov.in",
+                "kerala": "land.kerala.gov.in",
+                "assam": "revenueassam.nic.in",
+            }
+
+            # Find state
+            state_found = None
+            for state_key in state_portals:
+                if state_key in args_lower:
+                    state_found = state_key
+                    break
+
+            if state_found:
+                portal = state_portals[state_found]
+                return (
+                    f"**{state_found.title()} — Land Records:**\n\n"
+                    f"🌐 **Portal:** {portal}\n\n"
+                    f"📋 **How to Check Land Records Online:**\n"
+                    f"1. Visit the portal mentioned above\n"
+                    f"2. Enter: Village, Taluka/Tehsil, Survey No/Plot No\n"
+                    f"3. Click 'View' or 'Search'\n"
+                    f"4. Download/print the land record\n\n"
+                    f"📋 **Documents You Can Check:**\n"
+                    f"  - 7/12 Extract (Maharashtra) / Khata / Khatauni\n"
+                    f"  - Property card (urban)\n"
+                    f"  - Mutation records (Namantaran)\n"
+                    f"  - Survey/boundary map\n\n"
+                    f"📌 **Tip:** Carry Aadhaar and property details for verification at Tehsil office."
+                )
+            else:
+                lines = ["**Land Records — All States:**\n"]
+                lines.append("🌐 **Online Land Records Portals:**\n")
+                for state, portal in sorted(state_portals.items()):
+                    lines.append(f"  📍 {state.title()}: {portal}")
+                lines.append(f"\n📌 Visit your state's portal above to check land records.")
+                return "\n".join(lines)
+
+        if is_mutation:
+            return (
+                "**Property Mutation (Namantaran):**\n\n"
+                "📋 **What is Mutation?**\n"
+                "  - Transfer of property in revenue records after sale/gift/inheritance\n"
+                "  - Required for: selling property, getting loans, legal proof\n"
+                "  - Does NOT transfer ownership (sale deed does that)\n\n"
+                "📋 **How to Apply:**\n"
+                "1. Visit Tehsil/Revenue office\n"
+                "2. Fill mutation application form (Form 7 in Maharashtra)\n"
+                "3. Submit: Sale deed, ID proof, land records, death certificate (if inherited)\n"
+                "4. Fee: Rs 50-200\n"
+                "5. Notice served to all affected parties\n"
+                "6. Objection period: 15-30 days\n"
+                "7. If no objection → Mutation order passed\n"
+                "8. Updated records in 7-15 days\n\n"
+                "📱 **Online Mutation (some states):**\n"
+                "  - Maharashtra: bhulekh.mahabhumi.gov.in\n"
+                "  - UP: upbhulekh.gov.in\n"
+                "  - Telangana: dharani.telangana.gov.in\n\n"
+                "⏱️ **Timeline:** 30-90 days depending on state\n"
+                "📌 **Tip:** Apply online if your state portal offers it. Track status online."
+            )
+
+        if is_encumbrance:
+            return (
+                "**Encumbrance Certificate (EC):**\n\n"
+                "📋 **What is EC?**\n"
+                "  - Certificate showing all registered transactions on a property\n"
+                "  - Proves property is free from legal dues/mortgages\n"
+                "  - Required for: property sale, bank loan, home loan\n\n"
+                "📋 **How to Apply:**\n"
+                "1. Visit Sub-Registrar office where property is registered\n"
+                "2. Fill Form 22 (EC application)\n"
+                "3. Submit: Property details, ID proof, address proof\n"
+                "4. Fee: Rs 15-50 per year of search (varies by state)\n"
+                "5. Officials search 15-30 years of records\n"
+                "6. EC issued in 15-30 days\n\n"
+                "📱 **Online EC (some states):**\n"
+                "  - Maharashtra: igre.maharashtra.gov.in\n"
+                "  - Karnataka: kaverionline.karnataka.gov.in\n"
+                "  - Delhi: delhigovt.nic.in\n\n"
+                "⚠️ **Important:**\n"
+                "  - EC only covers registered transactions (not agreements to sell)\n"
+                "  - Get 'Nil EC' if no transactions found\n"
+                "  - Hire a lawyer for complex properties"
+            )
+
+        if is_tax:
+            return (
+                "**Property Tax — Online Payment:**\n\n"
+                "📋 **State-wise Property Tax Portals:**\n"
+                "  - Delhi: mcdonline.nic.in\n"
+                "  - Mumbai: portal.mcgm.gov.in\n"
+                "  - Bangalore: bbmp.gov.in\n"
+                "  - Chennai: chennaicorporation.gov.in\n"
+                "  - Kolkata: kmcgov.in\n"
+                "  - Hyderabad: ghmc.gov.in\n"
+                "  - Pune: punecorporation.org\n\n"
+                "📋 **How to Pay:**\n"
+                "1. Visit your city's property tax portal\n"
+                "2. Enter: Property ID / Assessment Number / Zone-Ward\n"
+                "3. Verify property details and tax amount\n"
+                "4. Pay via: UPI, Net Banking, Credit/Debit Card\n"
+                "5. Download receipt\n\n"
+                "💰 **Property Tax Formula:**\n"
+                "  Tax = Carpet Area × Rate per sq ft × Usage Factor\n"
+                "  Rate varies by: zone, property type (residential/commercial), age\n\n"
+                "📋 **Documents Needed:**\n"
+                "  - Previous tax receipt\n"
+                "  - Sale deed / conveyance deed\n"
+                "  - Occupancy certificate\n"
+                "  - Building plan approval\n\n"
+                "⚠️ **Tip:** Pay before deadline to avoid 1-2% monthly penalty."
+            )
+
+        # Default: show title verification guide
+        return self._handle_property("verify title")
 
     # ── Training Data Pipeline ──────────────────────────────────────────────
 
