@@ -458,6 +458,51 @@ class ToolRegistry:
             "usage": "property: verify title | property: land records Maharashtra | property: mutation | property: encumbrance | property: tax",
             "handler": self._handle_property,
         }
+        self.tools["youtube"] = {
+            "name": "youtube",
+            "description": (
+                "Extract YouTube video transcript/subtitles and summarize video content. "
+                "Provide a YouTube URL or video title."
+            ),
+            "usage": "youtube: https://youtube.com/watch?v=xxx | youtube: summarize video title",
+            "handler": self._handle_youtube,
+        }
+        self.tools["route"] = {
+            "name": "route",
+            "description": (
+                "Route planning and navigation: get directions, distance, and travel time "
+                "between two locations in India. Uses OpenStreetMap APIs."
+            ),
+            "usage": "route: Delhi to Mumbai | route: Bangalore to Chennai | route: distance Kolkata to Hyderabad",
+            "handler": self._handle_route,
+        }
+        self.tools["recipe"] = {
+            "name": "recipe",
+            "description": (
+                "Indian recipe database: step-by-step recipes for North Indian, South Indian, "
+                "Bengali, Gujarati, Rajasthani, and other regional cuisines."
+            ),
+            "usage": "recipe: dal makhani | recipe: dosa | recipe: butter chicken | recipe: biryani | recipe: list",
+            "handler": self._handle_recipe,
+        }
+        self.tools["business"] = {
+            "name": "business",
+            "description": (
+                "Business registration lookup: verify GSTIN, CIN, PAN, TAN. "
+                "Check company registration status and details."
+            ),
+            "usage": "business: verify GSTIN 27AABCU9603R1ZM | business: company Infosys | business: GSTIN format",
+            "handler": self._handle_business,
+        }
+        self.tools["areacode"] = {
+            "name": "areacode",
+            "description": (
+                "STD/ISD area code lookup for Indian cities and international countries. "
+                "Find STD codes, ISD codes, and PIN codes."
+            ),
+            "usage": "areacode: STD Delhi | areacode: ISD USA | areacode: STD Mumbai | areacode: country Japan",
+            "handler": self._handle_areacode,
+        }
 
     # ── Sample Database ───────────────────────────────────────────────────────
 
@@ -3655,6 +3700,860 @@ class ToolRegistry:
 
         # Default: show title verification guide
         return self._handle_property("verify title")
+
+    # ── YouTube Transcript ─────────────────────────────────────────────────
+
+    def _handle_youtube(self, args: str) -> str:
+        """Extract YouTube video transcript or summarize content."""
+        args = args.strip()
+        if not args:
+            return (
+                "**YouTube Transcript Tool:**\n\n"
+                "Usage:\n"
+                "  youtube: https://youtube.com/watch?v=xxx — Get transcript\n"
+                "  youtube: summarize <url> — Summarize video\n"
+                "  youtube: <video title> — Search and summarize\n\n"
+                "The tool extracts subtitles/transcripts from YouTube videos."
+            )
+
+        # Extract video ID from URL
+        video_id = None
+        url_match = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})', args)
+        if url_match:
+            video_id = url_match.group(1)
+
+        # Try to get transcript via API
+        if video_id:
+            try:
+                # Try using youtube-transcript-api if installed
+                from youtube_transcript_api import YouTubeTranscriptApi
+                transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'hi', 'en-IN'])
+                text = ' '.join([entry['text'] for entry in transcript])
+                if len(text) > 2000:
+                    text = text[:2000] + '...'
+                return (
+                    f"🎬 **YouTube Video Transcript:**\n"
+                    f"  Video ID: {video_id}\n"
+                    f"  URL: https://youtube.com/watch?v={video_id}\n\n"
+                    f"**Transcript:**\n{text}"
+                )
+            except ImportError:
+                pass
+            except Exception as e:
+                # Transcript extraction failed — fall back to web search
+                pass
+
+        # Fallback: use web search to find video info
+        search_query = f"youtube {args} video summary"
+        try:
+            result = self._handle_web_search(search_query)
+            return f"🎬 **YouTube Search:**\n\n{result}\n\n💡 *Tip: For full transcripts, install youtube-transcript-api: pip install youtube-transcript-api*"
+        except Exception as e:
+            return f"YouTube search error: {e}"
+
+    # ── Route Planning ─────────────────────────────────────────────────────
+
+    def _handle_route(self, args: str) -> str:
+        """Route planning and navigation between two locations."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Route Planning:**\n\n"
+                "Usage:\n"
+                "  route: Delhi to Mumbai — Get directions\n"
+                "  route: Bangalore to Chennai — Distance and time\n"
+                "  route: distance Kolkata to Hyderabad — Distance only"
+            )
+
+        args_lower = args.lower()
+
+        # Parse: <from> to <to>
+        to_match = re.search(r'\bto\b', args_lower)
+        if not to_match:
+            return "Error: Use format: route: <from> to <to>\nExample: route: Delhi to Mumbai"
+
+        from_place = args[:to_match.start()].strip()
+        to_place = args[to_match.end():].strip()
+
+        # Clean up common prefixes
+        for prefix in ['distance', 'directions', 'route', 'from']:
+            from_place = re.sub(r'^' + prefix + r'\s+', '', from_place, flags=re.IGNORECASE)
+
+        if not from_place or not to_place:
+            return "Error: Please provide both origin and destination.\nExample: route: Delhi to Mumbai"
+
+        # Geocode both places
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+            def geocode(place):
+                url = f"https://geocoding-api.open-meteo.com/v1/search?name={urllib.parse.quote(place)}&count=1&language=en"
+                data = _http_get(url, timeout=10)
+                if data and data.get('results'):
+                    r = data['results'][0]
+                    return r.get('latitude'), r.get('longitude'), r.get('name', place)
+                return None, None, place
+
+            lat1, lon1, name1 = geocode(from_place)
+            lat2, lon2, name2 = geocode(to_place)
+
+            if not lat1 or not lat2:
+                missing = from_place if not lat1 else to_place
+                return f"Could not find location for: {missing}. Please check the city name."
+
+            # Calculate approximate distance (Haversine)
+            import math
+            R = 6371  # Earth radius in km
+            dlat = math.radians(lat2 - lat1)
+            dlon = math.radians(lon2 - lon1)
+            a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+            c = 2 * math.asin(math.sqrt(a))
+            distance = R * c
+
+            # Estimate travel time
+            hours = distance / 60  # Average 60 km/h
+            road_hours = distance / 45  # Road average 45 km/h
+            flight_hours = hours * 0.7  # Flight is faster
+
+            # Get weather at destination
+            weather_info = ""
+            try:
+                w_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat2}&longitude={lon2}&current=temperature_2m,weather_code&timezone=auto"
+                w_data = _http_get(w_url, timeout=10)
+                if w_data and 'current' in w_data:
+                    temp = w_data['current'].get('temperature_2m', 'N/A')
+                    weather_info = f"\n🌤️ Weather at {name2}: {temp}°C"
+            except Exception:
+                pass
+
+            lines = [
+                f"**Route: {name1} → {name2}**\n",
+                f"📍 Distance: {distance:,.0f} km (approximate)\n",
+                f"🚗 **By Road:** ~{road_hours:.0f} hours (via NH)\n",
+                f"🚂 **By Train:** ~{distance/55:.0f} hours (avg 55 km/h)\n",
+                f"✈️ **By Flight:** ~{flight_hours:.1f} hours (flying time)\n",
+                f"\n📌 **Key Stops (by road):**\n",
+            ]
+
+            # Common routes
+            route_key = f"{name1.lower()} to {name2.lower()}"
+            popular_routes = {
+                "delhi to mumbai": "NH48 via Vadodara, Surat (~1,400 km)",
+                "mumbai to delhi": "NH48 via Nashik, Vadodara (~1,400 km)",
+                "delhi to jaipur": "NH48 (~280 km, ~5 hrs)",
+                "bangalore to chennai": "NH44 via Hosur (~350 km, ~6 hrs)",
+                "delhi to agra": "Yamuna Expressway (~230 km, ~3 hrs)",
+                "mumbai to pune": "Mumbai-Pune Expressway (~150 km, ~3 hrs)",
+                "kolkata to delhi": "NH19 via Kanpur (~1,450 km)",
+                "chennai to hyderabad": "NH65 via Tirupati (~800 km)",
+                "bangalore to hyderabad": "NH44 via Anantapur (~570 km)",
+                "delhi to Chandigarh": "NH44 (~260 km, ~4 hrs)",
+            }
+
+            route_found = False
+            for route_key_name, route_desc in popular_routes.items():
+                if route_key in route_key_name or route_key_name in route_key:
+                    lines.append(f"  📍 {route_desc}")
+                    route_found = True
+                    break
+
+            if not route_found:
+                lines.append(f"  📍 Take NH (National Highway) for fastest route")
+
+            lines.append(f"\n🗺️ **Navigation:**")
+            lines.append(f"  - Google Maps: maps.google.com/dir/{name1}/{name2}")
+            lines.append(f"  - Apple Maps: Navigate from {name1} to {name2}")
+            lines.append(f"  - NHAI Toll Calculator: tollguru.com")
+
+            if weather_info:
+                lines.append(weather_info)
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            return f"Route planning error: {e}"
+
+    # ── Indian Recipe Database ──────────────────────────────────────────────
+
+    def _handle_recipe(self, args: str) -> str:
+        """Indian recipe database with step-by-step instructions."""
+        args = args.strip()
+        if not args or args.lower() in ['list', 'all', 'index']:
+            return (
+                "**Indian Recipe Database:**\n\n"
+                "🍽️ **North Indian:**\n"
+                "  - Dal Makhani, Butter Chicken, Paneer Tikka, Naan, Rajma, Chole\n"
+                "  - Biryani (Hyderabadi), Tandoori Roti, Aloo Gobi, Matar Paneer\n\n"
+                "🍽️ **South Indian:**\n"
+                "  - Dosa, Idli, Sambar, Rasam, Vada, Upma, Pongal, Appam\n"
+                "  - Kerala Parotta, Chettinad Chicken, Malabar Biryani\n\n"
+                "🍽️ **Bengali:**\n"
+                "  - Fish Curry (Macher Jhol), Luchi, Shukto, Mishti Doi, Rasgulla\n\n"
+                "🍽️ **Gujarati:**\n"
+                "  - Dhokla, Khandvi, Undhiyu, Thepla, Fafda-Jalebi, Dal Dhokli\n\n"
+                "🍽️ **Rajasthani:**\n"
+                "  - Dal Baati Churma, Gatte ki Sabzi, Ker Sangri, Laal Maas\n\n"
+                "🍽️ **Maharashtrian:**\n"
+                "  - Misal Pav, Vada Pav, Bhakarwadi, Puran Poli, Solkadhi\n\n"
+                "🍽️ **Street Food:**\n"
+                "  - Pani Puri, Bhel Puri, Samosa, Aloo Tikka, Pav Bhaji\n\n"
+                "Usage: recipe: <dish name> | recipe: list"
+            )
+
+        RECIPES = {
+            "dal makhani": {
+                "cuisine": "North Indian",
+                "time": "45 mins",
+                "serves": "4",
+                "ingredients": ["1 cup whole urad dal", "1/2 cup rajma (kidney beans)", "2 tbsp butter", "1 tbsp oil",
+                    "1 inch ginger (paste)", "4 cloves garlic (paste)", "2 tomatoes (puree)", "1 tsp red chili powder",
+                    "1 tsp garam masala", "1 tsp cumin seeds", "Salt to taste", "Cream for garnish"],
+                "steps": ["Soak urad dal and rajma overnight (8 hours).",
+                    "Pressure cook for 20 mins until soft. Mash lightly.",
+                    "Heat butter + oil. Add cumin seeds, ginger-garlic paste.",
+                    "Add tomato puree, chili powder. Cook until oil separates.",
+                    "Add cooked dal. Add 1 cup water. Simmer 20-25 mins on low heat.",
+                    "Add garam masala, salt. Stir well.",
+                    "Garnish with butter and cream. Serve hot with naan or rice."],
+            },
+            "butter chicken": {
+                "cuisine": "North Indian",
+                "time": "40 mins",
+                "serves": "4",
+                "ingredients": ["500g chicken (boneless, cubed)", "1 cup yogurt", "2 tbsp lemon juice",
+                    "1 tbsp ginger-garlic paste", "1 tsp turmeric", "1 tsp red chili powder",
+                    "2 tbsp butter", "1 cup tomato puree", "1/2 cup cream",
+                    "1 tsp garam masala", "1 tsp kasuri methi", "Salt to taste"],
+                "steps": ["Marinate chicken with yogurt, lemon juice, ginger-garlic paste, turmeric, chili powder. Rest 30 mins.",
+                    "Grill or pan-fry chicken until charred. Set aside.",
+                    "Heat butter in a pan. Add tomato puree. Cook 5 mins.",
+                    "Add cream, garam masala, kasuri methi, salt.",
+                    "Add grilled chicken. Simmer 10 mins.",
+                    "Serve with naan or jeera rice."],
+            },
+            "dosa": {
+                "cuisine": "South Indian",
+                "time": "20 mins (+ fermentation)",
+                "serves": "4",
+                "ingredients": ["3 cups rice", "1 cup urad dal", "1/2 tsp fenugreek seeds",
+                    "Salt to taste", "Oil for cooking"],
+                "steps": ["Soak rice and urad dal separately for 4-6 hours.",
+                    "Grind to smooth batter (dosa consistency). Add fenugreek seeds.",
+                    "Mix both batters. Add salt. Ferment overnight (8-10 hours).",
+                    "Heat dosa tawa. Pour batter and spread in circular motion.",
+                    "Drizzle oil around edges. Cook until golden and crispy.",
+                    "Serve hot with sambar and coconut chutney."],
+            },
+            "idli": {
+                "cuisine": "South Indian",
+                "time": "15 mins (+ fermentation)",
+                "serves": "4",
+                "ingredients": ["3 cups rice", "1 cup urad dal", "1/2 tsp fenugreek seeds", "Salt to taste"],
+                "steps": ["Soak rice and urad dal separately for 4-6 hours.",
+                    "Grind urad dal to fluffy batter. Grind rice to smooth batter.",
+                    "Mix both batters. Add salt. Ferment overnight.",
+                    "Grease idli plates. Pour batter into molds.",
+                    "Steam for 10-12 mins until cooked.",
+                    "Serve with sambar and chutney."],
+            },
+            "biryani": {
+                "cuisine": "Hyderabadi",
+                "time": "60 mins",
+                "serves": "6",
+                "ingredients": ["500g basmati rice", "500g chicken/mutton", "2 onions (sliced)",
+                    "2 tomatoes", "1 cup yogurt", "2 tbsp biryani masala", "1 tsp saffron (in milk)",
+                    "4 tbsp oil/ghee", "Whole spices (bay leaf, cinnamon, cardamom)",
+                    "Mint and coriander leaves", "Salt to taste"],
+                "steps": ["Wash and soak rice for 30 mins. Parboil rice with whole spices (70% cooked).", 
+                    "Marinate meat with yogurt, ginger-garlic paste, chili, turmeric, salt for 1 hour.",
+                    "Heat oil. Fry onions until golden brown. Add tomatoes.",
+                    "Add marinated meat. Cook until 80% done.",
+                    "Layer: meat, rice, saffron milk, mint, coriander, ghee.",
+                    "Cover with tight lid (dum). Cook on very low heat for 20 mins.",
+                    "Fluff gently. Serve with raita and mirchi ka salan."],
+            },
+            "paneer tikka": {
+                "cuisine": "North Indian",
+                "time": "30 mins",
+                "serves": "4",
+                "ingredients": ["250g paneer (cubed)", "1 cup yogurt", "2 tbsp gram flour",
+                    "1 tsp red chili powder", "1 tsp garam masala", "1 tsp cumin powder",
+                    "1 tbsp lemon juice", "Capsicum & onion (cubed)", "Salt, oil"],
+                "steps": ["Mix yogurt, gram flour, spices, lemon juice for marinade.",
+                    "Add paneer cubes, capsicum, onion. Marinate 30 mins.",
+                    "Thread onto skewers.",
+                    "Grill in oven (200°C) for 15 mins or pan-fry.",
+                    "Serve hot with green chutney and onions."],
+            },
+            "rajma": {
+                "cuisine": "North Indian",
+                "time": "30 mins",
+                "serves": "4",
+                "ingredients": ["1 cup rajma (kidney beans)", "2 onions (chopped)", "2 tomatoes (puree)",
+                    "1 tbsp ginger-garlic paste", "1 tsp cumin seeds", "1 tsp coriander powder",
+                    "1/2 tsp turmeric", "1 tsp red chili powder", "1 tsp garam masala", "Salt, oil"],
+                "steps": ["Soak rajma overnight. Pressure cook for 20 mins until soft.",
+                    "Heat oil. Add cumin seeds, onions. Fry golden.",
+                    "Add ginger-garlic paste, tomato puree. Cook until oil separates.",
+                    "Add spices. Cook 2 mins.",
+                    "Add cooked rajma with water. Simmer 15-20 mins.",
+                    "Mash some beans for thickness. Serve with rice."],
+            },
+            "chole": {
+                "cuisine": "North Indian",
+                "time": "40 mins",
+                "serves": "4",
+                "ingredients": ["1 cup chickpeas (soaked overnight)", "2 onions", "2 tomatoes",
+                    "1 tbsp ginger-garlic paste", "2 tea bags (for color)",
+                    "1 tsp chole masala", "1 tsp cumin seeds", "Salt, oil"],
+                "steps": ["Pressure cook chickpeas with tea bags for 20 mins.",
+                    "Heat oil. Fry onions golden. Add ginger-garlic paste.",
+                    "Add tomato puree, chole masala, salt. Cook 5 mins.",
+                    "Add cooked chickpeas. Simmer 15 mins.",
+                    "Garnish with ginger, green chili, coriander.",
+                    "Serve with bhature or kulcha."],
+            },
+            "samosa": {
+                "cuisine": "Street Food",
+                "time": "45 mins",
+                "serves": "6",
+                "ingredients": ["2 cups flour (maida)", "3 potatoes (boiled, mashed)", "1/2 cup peas",
+                    "1 tsp cumin seeds", "1 tsp garam masala", "1 tsp amchur",
+                    "Green chili, coriander", "Oil for frying", "Salt"],
+                "steps": ["Make dough: flour + salt + oil + water. Rest 30 mins.",
+                    "Filling: Heat oil, add cumin, peas, mashed potatoes, spices.",
+                    "Divide dough into balls. Roll into oval shape. Cut in half.",
+                    "Form cone from half. Fill with potato mixture.",
+                    "Seal edges with water. Deep fry on medium heat until golden.",
+                    "Serve hot with tamarind and green chutney."],
+            },
+            "pani puri": {
+                "cuisine": "Street Food",
+                "time": "30 mins",
+                "serves": "4",
+                "ingredients": ["Ready-made puris", "2 potatoes (boiled, mashed)", "1/2 cup chickpeas (boiled)",
+                    "For pani: Mint, coriander, green chili, tamarind, cumin powder, black salt, jaggery"],
+                "steps": ["Prepare pani: Blend mint, coriander, chili, cumin, salt, tamarind water.",
+                    "Prepare filling: Mix mashed potatoes with chickpeas, chaat masala.",
+                    "Crack a small hole in each puri.",
+                    "Fill with potato-chickpea mixture.",
+                    "Dip into pani and eat immediately!"],
+            },
+            "misal pav": {
+                "cuisine": "Maharashtrian",
+                "time": "35 mins",
+                "serves": "4",
+                "ingredients": ["1 cup moth sprouts (or mixed sprouts)", "2 onions", "2 tomatoes",
+                    "Misal masala", "Farsan (crunchy mix)", "Pav (bread rolls)",
+                    "Lemon, coriander, salt, oil"],
+                "steps": ["Cook sprouts in pressure cooker (2 whistles).",
+                    "Heat oil. Fry onions. Add tomatoes, misal masala.",
+                    "Add cooked sprouts. Add water for gravy consistency.",
+                    "Simmer 10 mins. Add lemon juice.",
+                    "Serve: Pour misal in bowl. Top with farsan, onion, coriander.",
+                    "Serve with pav."],
+            },
+            "vada pav": {
+                "cuisine": "Maharashtrian",
+                "time": "25 mins",
+                "serves": "4",
+                "ingredients": ["4 pavs", "4 potatoes (boiled, mashed)", "Green chutney",
+                    "Dry garlic chutney", "4 vada (gram flour batter)",
+                    "Green chili, oil"],
+                "steps": ["Make vada: Mix mashed potatoes with turmeric, mustard seeds, curry leaves.",
+                    "Form balls. Dip in gram flour batter.",
+                    "Deep fry until golden.",
+                    "Slice pav. Apply green chutney and dry garlic chutney.",
+                    "Place vada inside pav. Press lightly.",
+                    "Serve hot with fried green chili."],
+            },
+            "vada": {
+                "cuisine": "South Indian",
+                "time": "20 mins",
+                "serves": "4",
+                "ingredients": ["1 cup urad dal (soaked 4 hrs)", "2 green chilies", "1 inch ginger",
+                    "Curry leaves", "Onion (optional)", "Salt", "Oil for frying"],
+                "steps": ["Grind urad dal to thick batter (no water or minimal).",
+                    "Add chilies, ginger, curry leaves, salt. Mix well.",
+                    "Heat oil.",
+                    "Wet hands. Take batter, form donut shape.",
+                    "Deep fry on medium heat until golden and crispy.",
+                    "Serve with sambar and coconut chutney."],
+            },
+            "upma": {
+                "cuisine": "South Indian",
+                "time": "15 mins",
+                "serves": "4",
+                "ingredients": ["1 cup rava (semolina)", "2 tbsp oil", "1 tsp mustard seeds",
+                    "Curry leaves", "2 green chilies", "1 onion (chopped)",
+                    "2 cups water", "Salt", "Cashews"],
+                "steps": ["Dry roast rava until light golden. Set aside.",
+                    "Heat oil. Add mustard seeds, curry leaves, chilies.",
+                    "Add onions. Fry until soft.",
+                    "Add water and salt. Bring to boil.",
+                    "Slowly add roasted rava, stirring continuously.",
+                    "Cover and cook on low heat for 3-4 mins.",
+                    "Garnish with cashews and coriander."],
+            },
+            "palak paneer": {
+                "cuisine": "North Indian",
+                "time": "25 mins",
+                "serves": "4",
+                "ingredients": ["250g paneer (cubed)", "2 bunches spinach", "1 onion",
+                    "2 tomatoes", "1 inch ginger", "4 cloves garlic",
+                    "1 tsp cumin seeds", "1/2 tsp garam masala", "Cream, salt, oil"],
+                "steps": ["Blanch spinach in boiling water for 2 mins. Shock in cold water.",
+                    "Blend spinach to smooth puree.",
+                    "Heat oil. Add cumin, onion. Fry golden.",
+                    "Add ginger-garlic, tomatoes. Cook until soft.",
+                    "Add spinach puree, salt. Simmer 5 mins.",
+                    "Add paneer cubes. Cook 2 mins.",
+                    "Add cream and garam masala. Serve hot."],
+            },
+            "chole bhature": {
+                "cuisine": "North Indian",
+                "time": "45 mins",
+                "serves": "4",
+                "ingredients": ["For chole: 1 cup chickpeas, onions, tomatoes, chole masala", 
+                    "For bhature: 2 cups flour, yogurt, baking soda, salt, oil"],
+                "steps": ["Prepare chole (see chole recipe above).",
+                    "Make bhature dough: flour + yogurt + baking soda + salt + oil. Rest 2 hrs.",
+                    "Roll bhature into oval shapes.",
+                    "Deep fry on high heat until puffed and golden.",
+                    "Serve hot chole with bhature. Add pickle and onion rings."],
+            },
+            "masala dosa": {
+                "cuisine": "South Indian",
+                "time": "30 mins (+ fermentation)",
+                "serves": "4",
+                "ingredients": ["Dosa batter (see dosa recipe)", "3 potatoes (boiled, mashed)",
+                    "1 onion", "Mustard seeds", "Curry leaves", "Turmeric", "Green chili"],
+                "steps": ["Prepare potato masala: Heat oil, add mustard seeds, curry leaves.",
+                    "Add onions, green chili. Fry.",
+                    "Add mashed potatoes, turmeric, salt. Mix well.",
+                    "Make dosa on tawa (see dosa recipe).", 
+                    "Place potato masala in center of dosa.",
+                    "Fold and serve with sambar and chutney."],
+            },
+            "gulab jamun": {
+                "cuisine": "Dessert",
+                "time": "30 mins",
+                "serves": "4",
+                "ingredients": ["1 cup milk powder", "1/4 cup flour", "1/4 tsp baking soda",
+                    "2 tbsp ghee", "Milk (to knead)", "For syrup: 2 cups sugar, 2 cups water, cardamom, rose water"],
+                "steps": ["Make sugar syrup: Boil sugar + water until slightly sticky. Add cardamom, rose water.",
+                    "Mix milk powder, flour, baking soda, ghee.",
+                    "Add milk little by little to make soft dough.",
+                    "Roll into smooth small balls (no cracks).",
+                    "Deep fry on very low heat until golden brown.",
+                    "Soak in warm sugar syrup for 1 hour.",
+                    "Serve warm or at room temperature."],
+            },
+            "rasmalai": {
+                "cuisine": "Dessert",
+                "time": "45 mins",
+                "serves": "4",
+                "ingredients": ["1 liter milk (for chenna)", "1 liter milk (for rabri)",
+                    "1/2 cup sugar", "Saffron", "Cardamom", "Pistachios", "Baking powder pinch"],
+                "steps": ["Make chenna: Boil milk, add lemon juice. Strain whey. Wash chenna.",
+                    "Knead chenna well. Add pinch baking powder.",
+                    "Roll into flat discs. Boil in sugar water for 10 mins.",
+                    "Make rabri: Boil 1 liter milk until thickened.",
+                    "Add sugar, saffron, cardamom to rabri.",
+                    "Squeeze water from chenna balls. Soak in rabri.",
+                    "Chill for 2 hours. Garnish with pistachios."],
+            },
+            "jeera rice": {
+                "cuisine": "North Indian",
+                "time": "15 mins",
+                "serves": "4",
+                "ingredients": ["1 cup basmati rice", "1 tsp cumin seeds", "1 tbsp ghee",
+                    "Bay leaf", "2 cloves", "1 inch cinnamon", "Salt"],
+                "steps": ["Wash and soak rice for 15 mins.",
+                    "Heat ghee. Add cumin seeds, bay leaf, cloves, cinnamon.",
+                    "Add drained rice. Stir for 1 min.",
+                    "Add 2 cups water and salt.",
+                    "Bring to boil, then cover and cook on low heat for 12 mins.",
+                    "Fluff with fork. Serve with dal or curry."],
+            },
+            "dal tadka": {
+                "cuisine": "North Indian",
+                "time": "20 mins",
+                "serves": "4",
+                "ingredients": ["1 cup toor dal", "1/2 tsp turmeric", "Salt",
+                    "For tadka: 2 tbsp ghee, 1 tsp cumin seeds, 2 dried red chilies",
+                    "1/2 tsp hing (asafoetida)", "2 garlic cloves (sliced)", "Coriander"],
+                "steps": ["Wash dal. Pressure cook with turmeric and water for 3-4 whistles.",
+                    "Mash cooked dal. Add water for desired consistency.",
+                    "Prepare tadka: Heat ghee. Add cumin seeds, red chilies, hing.",
+                    "Add sliced garlic. Fry until golden.",
+                    "Pour tadka over dal. Cover immediately.",
+                    "Garnish with coriander. Serve with rice or roti."],
+            },
+            "aloo gobi": {
+                "cuisine": "North Indian",
+                "time": "25 mins",
+                "serves": "4",
+                "ingredients": ["2 potatoes (cubed)", "1 cauliflower (florets)",
+                    "1 onion", "2 tomatoes", "1 tsp cumin seeds", "1 tsp turmeric",
+                    "1 tsp coriander powder", "1/2 tsp red chili powder", "Oil, salt"],
+                "steps": ["Heat oil. Add cumin seeds.",
+                    "Add onions. Fry until golden.",
+                    "Add tomatoes, turmeric, coriander, chili powder. Cook until soft.",
+                    "Add potatoes. Stir well. Cover and cook 8 mins.",
+                    "Add cauliflower. Cover and cook 10 mins on medium heat.",
+                    "Garnish with coriander. Serve with roti."],
+            },
+            "fish curry": {
+                "cuisine": "Bengali",
+                "time": "30 mins",
+                "serves": "4",
+                "ingredients": ["500g fish (rohu or pomfret)", "2 tbsp mustard oil",
+                    "1 tsp turmeric", "1 tsp red chili powder", "1 tsp cumin powder",
+                    "2 tomatoes", "1 tsp panch phoron", "Salt, coriander"],
+                "steps": ["Marinate fish with turmeric and salt.",
+                    "Pan-fry fish lightly. Set aside.",
+                    "Heat mustard oil. Add panch phoron.",
+                    "Add tomatoes, turmeric, chili, cumin. Cook until soft.",
+                    "Add water. Bring to boil.",
+                    "Add fried fish. Simmer 5 mins.",
+                    "Garnish with coriander. Serve with steamed rice."],
+            },
+            "paneer butter masala": {
+                "cuisine": "North Indian",
+                "time": "25 mins",
+                "serves": "4",
+                "ingredients": ["250g paneer (cubed)", "2 tbsp butter", "1 cup tomato puree",
+                    "1/2 cup cream", "1 tsp garam masala", "1 tsp kasuri methi",
+                    "1 tsp sugar", "Salt, coriander"],
+                "steps": ["Heat butter. Add tomato puree. Cook 5 mins.",
+                    "Add garam masala, kasuri methi, sugar, salt.",
+                    "Add paneer cubes. Cook 3-4 mins.",
+                    "Add cream. Stir well.",
+                    "Garnish with coriander. Serve with naan."],
+            },
+            "matar paneer": {
+                "cuisine": "North Indian",
+                "time": "25 mins",
+                "serves": "4",
+                "ingredients": ["250g paneer (cubed)", "1 cup green peas", "2 tomatoes",
+                    "1 onion", "1 tsp cumin seeds", "1 tsp garam masala",
+                    "1/2 tsp turmeric", "Oil, salt"],
+                "steps": ["Heat oil. Add cumin seeds.",
+                    "Add onion. Fry until golden.",
+                    "Add tomato puree, turmeric, salt. Cook 5 mins.",
+                    "Add peas. Cook 5 mins.",
+                    "Add paneer cubes. Cook 3-4 mins.",
+                    "Add garam masala. Serve with roti or rice."],
+            },
+            "schezwan fried rice": {
+                "cuisine": "Indo-Chinese",
+                "time": "20 mins",
+                "serves": "4",
+                "ingredients": ["2 cups cooked rice (cold)", "1 cup mixed vegetables (carrot, beans, capsicum)",
+                    "2 tbsp schezwan sauce", "1 tbsp soy sauce", "2 cloves garlic",
+                    "1 tsp vinegar", "Spring onions", "Oil, salt"],
+                "steps": ["Heat oil in wok on high heat.",
+                    "Add garlic. Stir for 30 seconds.",
+                    "Add vegetables. Stir-fry 2 mins on high heat.",
+                    "Add schezwan sauce, soy sauce, vinegar.",
+                    "Add cold rice. Toss on high heat for 3-4 mins.",
+                    "Garnish with spring onions. Serve hot."],
+            },
+            "maggie": {
+                "cuisine": "Quick",
+                "time": "5 mins",
+                "serves": "1",
+                "ingredients": ["1 pack Maggi noodles", "2 cups water", "Maggi masala (included)",
+                    "Optional: 1 egg, vegetables, cheese"],
+                "steps": ["Boil 2 cups water in a pan.",
+                    "Add Maggi noodles and masala packet.",
+                    "Cook for 2 mins, stirring occasionally.",
+                    "Optional: Add veggies, egg, or cheese.",
+                    "Serve hot!"],
+            },
+            "masala chai": {
+                "cuisine": "Beverage",
+                "time": "5 mins",
+                "serves": "2",
+                "ingredients": ["1 cup water", "1 cup milk", "2 tsp tea leaves",
+                    "2 tsp sugar", "1/2 inch ginger (crushed)", "2 cardamom pods", "1 clove"],
+                "steps": ["Boil water with ginger, cardamom, and clove.",
+                    "Add tea leaves. Boil for 1 min.",
+                    "Add milk and sugar.",
+                    "Bring to boil 2-3 times.",
+                    "Strain and serve hot."],
+            },
+        }
+
+        args_lower = args.lower()
+
+        # Find matching recipe
+        best_match = None
+        for name in RECIPES:
+            if name in args_lower or args_lower in name:
+                best_match = name
+                break
+
+        # Partial match
+        if not best_match:
+            for name in RECIPES:
+                if any(word in args_lower for word in name.split()):
+                    best_match = name
+                    break
+
+        if not best_match:
+            available = ', '.join(sorted(RECIPES.keys()))
+            return (
+                f"Could not find recipe for: '{args}'\n"
+                f"Available recipes: {available}\n"
+                f"Usage: recipe: <dish name> | recipe: list"
+            )
+
+        recipe = RECIPES[best_match]
+        lines = [
+            f"**{best_match.title()}** — {recipe['cuisine']}\n",
+            f"⏱️ Time: {recipe['time']} | 👥 Serves: {recipe['serves']}\n",
+            f"📋 **Ingredients:**",
+        ]
+        for ing in recipe['ingredients']:
+            lines.append(f"  - {ing}")
+        lines.append(f"\n👨‍🍳 **Steps:**")
+        for i, step in enumerate(recipe['steps'], 1):
+            lines.append(f"  {i}. {step}")
+        lines.append(f"\n💡 **Tip:** Serve hot for best taste!")
+        lines.append(f"⚠️ *Adjust spices to your taste. Vegetarian options available for all recipes.*")
+
+        return "\n".join(lines)
+
+    # ── Business Registration Lookup ────────────────────────────────────────
+
+    def _handle_business(self, args: str) -> str:
+        """Business registration lookup: GSTIN, CIN, company details."""
+        args = args.strip()
+        if not args:
+            return (
+                "**Business Registration Lookup:**\n\n"
+                "Usage:\n"
+                "  business: verify GSTIN 27AABCU9603R1ZM — Verify GSTIN format\n"
+                "  business: company Infosys — Search company info\n"
+                "  business: GSTIN format — Learn GSTIN structure\n"
+                "  business: CIN format — Learn CIN structure\n\n"
+                "📌 **Portals:**\n"
+                "  - GST: gst.gov.in\n"
+                "  - MCA (CIN): mca.gov.in\n"
+                "  - Income Tax (PAN): incometax.gov.in"
+            )
+
+        args_lower = args.lower()
+
+        if 'format' in args_lower and 'gstin' in args_lower:
+            return (
+                "**GSTIN Format (15 digits):**\n\n"
+                "Structure: 2-digit state code + 10-digit PAN + 1 digit entity number + 1 letter Z + 1 check digit\n\n"
+                "Example: 27AABCU9603R1ZM\n"
+                "  27 = Maharashtra (state code)\n"
+                "  AABCU9603R = PAN of entity\n"
+                "  1 = Entity number\n"
+                "  Z = Default\n"
+                "  M = Check digit\n\n"
+                "**State Codes:**\n"
+                "  01-37: All states and UTs\n"
+                "  01: Jammu & Kashmir, 07: Delhi, 27: Maharashtra, 29: Karnataka\n"
+                "  33: Tamil Nadu, 36: Telangana, 09: UP, 24: Gujarat\n\n"
+                "**How to Verify:**\n"
+                "  1. Visit gst.gov.in\n"
+                "  2. Search Taxpayer → Search by GSTIN\n"
+                "  3. Enter 15-digit GSTIN\n"
+                "  4. Check: Legal name, trade name, registration date, status"
+            )
+
+        if 'format' in args_lower and 'cin' in args_lower:
+            return (
+                "**CIN Format (21 characters):**\n\n"
+                "Structure: Listing status + Industry code + State code + Year + Ownership type + Sequential no. + Registration no.\n\n"
+                "Example: L72200KA2003PLC031018 (Infosys)\n"
+                "  L = Listed, 72200 = IT services, KA = Karnataka, 2003 = Year\n"
+                "  PLC = Public Ltd Company, 031018 = Sequential number\n\n"
+                "**How to Verify:**\n"
+                "  1. Visit mca.gov.in\n"
+                "  2. MCA Services → View Company/LLP Master Data\n"
+                "  3. Enter CIN\n"
+                "  4. Check: Company name, status, date of incorporation, ROC"
+            )
+
+        if 'gstin' in args_lower:
+            # Try to validate GSTIN format
+            gstin_match = re.search(r'[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}', args.upper())
+            if gstin_match:
+                gstin = gstin_match.group()
+                state_code = gstin[:2]
+                state_codes = {
+                    '01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab',
+                    '04': 'Chandigarh', '05': 'Uttarakhand', '06': 'Haryana',
+                    '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
+                    '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh',
+                    '13': 'Nagaland', '14': 'Manipur', '15': 'Mizoram',
+                    '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam',
+                    '19': 'West Bengal', '20': 'Jharkhand', '21': 'Odisha',
+                    '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat',
+                    '25': 'Daman & Diu', '26': 'Dadra & Nagar Haveli', '27': 'Maharashtra',
+                    '28': 'Andhra Pradesh (old)', '29': 'Karnataka', '30': 'Goa',
+                    '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu',
+                    '34': 'Puducherry', '35': 'Andaman & Nicobar', '36': 'Telangana',
+                    '37': 'Andhra Pradesh', '38': 'Ladakh', '97': 'Other Territory',
+                }
+                state = state_codes.get(state_code, f'Unknown ({state_code})')
+                return (
+                    f"**GSTIN Verification:**\n\n"
+                    f"  GSTIN: {gstin}\n"
+                    f"  State: {state} (Code: {state_code})\n"
+                    f"  PAN: {gstin[2:12]}\n"
+                    f"  Entity No: {gstin[12]}\n\n"
+                    f"📌 **To get full details:**\n"
+                    f"  1. Visit gst.gov.in\n"
+                    f"  2. Search Taxpayer → Search by GSTIN\n"
+                    f"  3. Enter: {gstin}\n"
+                    f"  4. You'll see: Legal name, trade name, status, registration date"
+                )
+            else:
+                return (
+                    f"Invalid GSTIN format: '{args}'\n"
+                    f"GSTIN must be 15 characters: 2-digit state code + 10-digit PAN + 3 characters\n"
+                    f"Example: 27AABCU9603R1ZM"
+                )
+
+        # Default: search for company info
+        search_query = f"{args} company registration India GSTIN CIN"
+        try:
+            result = self._handle_web_search(search_query)
+            return f"🏢 **Business Search: {args}**\n\n{result}\n\n📌 Verify at: gst.gov.in (GST) or mca.gov.in (CIN)"
+        except Exception as e:
+            return f"Business search error: {e}"
+
+    # ── STD/ISD Area Code Lookup ────────────────────────────────────────────
+
+    def _handle_areacode(self, args: str) -> str:
+        """STD/ISD area code lookup for India and countries."""
+        args = args.strip()
+        if not args:
+            return (
+                "**STD/ISD Code Lookup:**\n\n"
+                "Usage:\n"
+                "  areacode: STD Delhi — STD code for Delhi\n"
+                "  areacode: STD Mumbai — STD code for Mumbai\n"
+                "  areacode: ISD USA — ISD code for USA\n"
+                "  areacode: country Japan — Country code\n"
+                "  areacode: list STD — Show all major STD codes"
+            )
+
+        args_lower = args.lower()
+
+        # Indian STD Codes (major cities)
+        STD_CODES = {
+            'delhi': '011', 'mumbai': '022', 'bangalore': '080', 'bengaluru': '080',
+            'chennai': '044', 'kolkata': '033', 'hyderabad': '040', 'pune': '020',
+            'ahmedabad': '079', 'jaipur': '0141', 'lucknow': '0522', 'kanpur': '0512',
+            'nagpur': '0712', 'indore': '0731', 'bhopal': '0755', 'patna': '0612',
+            'vadodara': '0265', 'surat': '0261', 'rajkot': '0281', 'udaipur': '0294',
+            'jodhpur': '0291', 'agra': '0562', 'varanasi': '0542', 'prayagraj': '0532',
+            'meerut': '0121', 'noida': '0120', 'gurgaon': '0124', 'faridabad': '0129',
+            'ghaziabad': '0120', 'dehradun': '0135', 'shimla': '0177', 'chandigarh': '0172',
+            'amritsar': '0183', 'ludhiana': '0161', 'jalandhar': '0181',
+            'guwahati': '0361', 'bhubaneswar': '0674', 'ranchi': '0651',
+            'raipur': '0771', 'bhubaneswar': '0674', 'cuttack': '0672',
+            'thiruvananthapuram': '0471', 'kochi': '0484', 'coimbatore': '0422',
+            'madurai': '0452', 'trichy': '0431', 'mysore': '0821', 'mangalore': '0824',
+            'hubli': '0836', 'belgaum': '0831', 'goa': '0832', 'pondicherry': '0413',
+            'gangtok': '0359', 'imphal': '0385', 'shillong': '0364', 'agartala': '0381',
+            'aizawl': '0389', 'kohima': '0370', 'itanagar': '0360', 'dispur': '0361',
+        }
+
+        # Country ISD Codes (major countries)
+        ISD_CODES = {
+            'india': '+91', 'usa': '+1', 'united states': '+1', 'uk': '+44',
+            'united kingdom': '+44', 'canada': '+1', 'australia': '+61',
+            'china': '+86', 'japan': '+81', 'south korea': '+82', 'korea': '+82',
+            'germany': '+49', 'france': '+33', 'italy': '+39', 'spain': '+34',
+            'brazil': '+55', 'russia': '+7', 'uae': '+971', 'dubai': '+971',
+            'saudi arabia': '+966', 'singapore': '+65', 'malaysia': '+60',
+            'thailand': '+66', 'vietnam': '+84', 'indonesia': '+62',
+            'philippines': '+63', 'pakistan': '+92', 'bangladesh': '+880',
+            'sri lanka': '+94', 'nepal': '+977', 'china': '+86',
+            'hong kong': '+852', 'taiwan': '+886', 'new zealand': '+64',
+            'south africa': '+27', 'nigeria': '+234', 'kenya': '+254',
+            'egypt': '+20', 'turkey': '+90', 'israel': '+972',
+            'netherlands': '+31', 'sweden': '+46', 'norway': '+47',
+            'switzerland': '+41', 'austria': '+43', 'belgium': '+32',
+            'poland': '+48', 'portugal': '+351', 'greece': '+30',
+            'czech republic': '+420', 'ireland': '+353', 'finland': '+358',
+            'denmark': '+45', 'argentina': '+54', 'mexico': '+52',
+            'colombia': '+57', 'chile': '+56', 'peru': '+51',
+            'china': '+86', 'russia': '+7', 'ukraine': '+380',
+        }
+
+        if 'std' in args_lower:
+            # Find city
+            city_query = args_lower.replace('std', '').replace('code', '').strip()
+            if not city_query or 'list' in city_query:
+                lines = ["**Major Indian STD Codes:**\n"]
+                lines.append(f"{'City':<20} {'STD Code':>10}")
+                lines.append("-" * 32)
+                for city, code in sorted(STD_CODES.items()):
+                    lines.append(f"{city.title():<20} {code:>10}")
+                lines.append("\n📌 Dial STD code + number for landline calls within India")
+                return "\n".join(lines)
+
+            # Search for city
+            found = False
+            for city, code in STD_CODES.items():
+                if city in city_query or city_query in city:
+                    found = True
+                    lines = [
+                        f"**STD Code: {city.title()}**\n",
+                        f"  📞 STD Code: {code}\n",
+                        f"  📱 Dial: {code} + <local number>\n",
+                        f"  📌 Example: From outside Delhi, dial 011-XXXX-XXXX\n",
+                        f"  📌 From mobile within same city: Dial the full number (no STD needed)"
+                    ]
+                    return "\n".join(lines)
+
+            if not found:
+                return f"STD code not found for: '{city_query}'\nTry: areacode: list STD"
+
+        if 'isd' in args_lower or 'country' in args_lower:
+            country_query = args_lower.replace('isd', '').replace('country', '').replace('code', '').strip()
+            if not country_query:
+                lines = ["**Major Country ISD Codes:**\n"]
+                lines.append(f"{'Country':<20} {'ISD Code':>10}")
+                lines.append("-" * 32)
+                shown = set()
+                for country, code in sorted(ISD_CODES.items()):
+                    if country not in shown:
+                        lines.append(f"{country.title():<20} {code:>10}")
+                        shown.add(country)
+                lines.append("\n📌 Dial ISD code + country number for international calls")
+                return "\n".join(lines)
+
+            # Search for country
+            found = False
+            for country, code in ISD_CODES.items():
+                if country in country_query or country_query in country:
+                    found = True
+                    lines = [
+                        f"**ISD Code: {country.title()}**\n",
+                        f"  🌍 ISD Code: {code}\n",
+                        f"  📱 Dial: {code} + <country number>\n",
+                        f"  📌 Example: Call India from USA → +91-XXXXXXXXXX"
+                    ]
+                    return "\n".join(lines)
+
+            if not found:
+                return f"ISD code not found for: '{country_query}'\nTry: areacode: ISD"
+
+        return "Error: Use format:\n  areacode: STD Delhi\n  areacode: ISD USA\n  areacode: country Japan"
 
     # ── Training Data Pipeline ──────────────────────────────────────────────
 

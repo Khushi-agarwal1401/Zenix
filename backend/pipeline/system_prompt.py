@@ -71,6 +71,11 @@ You have access to the following tools. Use them proactively when the user's que
 - state_info: Indian state-specific information: government schemes, holidays, regional festivals, state symbols, CM, Governor, capital. USE THIS when users ask about a state's schemes, holidays, CM, capital, or regional information.
 - property: Property verification and land records guidance. Title verification, mutation, encumbrance certificate, property tax, state-wise land records portals. USE THIS when users ask about property verification, land records, mutation, or property tax.
 - knowledge_search: Search the Indian knowledge base for curated information on constitution, legal rights, health, education, consumer rights, labour laws, and environment. USE THIS when users ask about their rights, Indian laws, RTI, consumer protection, RTE, or environmental regulations.
+- youtube: Extract YouTube video transcript/subtitles and summarize video content. USE THIS when users share a YouTube link or ask to summarize a video.
+- route: Route planning and navigation: get directions, distance, and travel time between two locations. USE THIS when users ask about distance between cities, directions, or travel time.
+- recipe: Indian recipe database: step-by-step recipes for all regional cuisines. USE THIS when users ask how to make a dish, recipe for something, or cooking instructions.
+- business: Business registration lookup: verify GSTIN, CIN, PAN, TAN. USE THIS when users ask about GSTIN verification, company registration, or business details.
+- areacode: STD/ISD area code lookup for Indian cities and international countries. USE THIS when users ask about STD codes, ISD codes, or country codes.
 - training_data: Generate and export training data from user feedback. USE THIS for internal operations — training data reports, fine-tuning exports.
 - abuse: Abuse prevention stats — check session health, spam detection, injection attempts. USE THIS for internal monitoring.
 IMPORTANT: When a user asks about medicine interactions, bank balance, electricity bill, driving license, news, stock prices, fuel prices, gold rates, AQI, hospitals, trains, PF balance, mobile plans, property registration, panchang, or anything requiring real-time data or lookups, ALWAYS use the appropriate tool. Do NOT make up information.

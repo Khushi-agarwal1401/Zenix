@@ -282,6 +282,27 @@ TOOL_KEYWORDS = {
     "encumbrance:": "property",
     "mutation:": "property",
     "land verification:": "property",
+    "youtube:": "youtube",
+    "youtube transcript:": "youtube",
+    "video transcript:": "youtube",
+    "summarize video:": "youtube",
+    "route:": "route",
+    "directions:": "route",
+    "distance:": "route",
+    "travel time:": "route",
+    "how far:": "route",
+    "recipe:": "recipe",
+    "how to make:": "recipe",
+    "cooking:": "recipe",
+    "recipe list:": "recipe",
+    "business:": "business",
+    "gstin:": "business",
+    "cin:": "business",
+    "company verify:": "business",
+    "areacode:": "areacode",
+    "std code:": "areacode",
+    "isd code:": "areacode",
+    "area code:": "areacode",
     "weather 7 day:": "weather",
     "forecast:": "weather",
 }
@@ -350,7 +371,17 @@ class AgentModule(PipelineModule):
             f"- 'verify property title' → Step 1: property: verify title\n"
             f"- 'land records Delhi' → Step 1: property: land records Delhi\n"
             f"- 'mutation process' → Step 1: property: mutation\n"
-            f"- 'property tax Mumbai' → Step 1: property: tax\n\n"
+            f"- 'property tax Mumbai' → Step 1: property: tax\n"
+            f"- 'youtube transcript https://youtube.com/watch?v=xxx' → Step 1: youtube: https://youtube.com/watch?v=xxx\n"
+            f"- 'summarize this video' → Step 1: youtube: summarize <url>\n"
+            f"- 'Delhi to Mumbai' → Step 1: route: Delhi to Mumbai\n"
+            f"- 'how far is Bangalore to Chennai' → Step 1: route: Bangalore to Chennai\n"
+            f"- 'how to make butter chicken' → Step 1: recipe: butter chicken\n"
+            f"- 'recipe for dosa' → Step 1: recipe: dosa\n"
+            f"- 'verify GSTIN 27AABCU9603R1ZM' → Step 1: business: verify GSTIN 27AABCU9603R1ZM\n"
+            f"- 'GSTIN format' → Step 1: business: GSTIN format\n"
+            f"- 'STD code Delhi' → Step 1: areacode: STD Delhi\n"
+            f"- 'ISD code USA' → Step 1: areacode: ISD USA\n\n"
             f"If the query is simple and only needs one tool, return a single step.\n"
             f"Plan:"
         )
